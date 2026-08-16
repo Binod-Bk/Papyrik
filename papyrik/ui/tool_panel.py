@@ -42,6 +42,9 @@ RUN_LABELS: dict[str, str] = {
     "PDF to Text": "Extract Text…",
     "Encrypt": "Set Password…",
     "Decrypt": "Remove Password…",
+    "Compress": "Compress…",
+    "Watermark": "Add Watermark…",
+    "Page Numbers": "Add Page Numbers…",
 }
 
 

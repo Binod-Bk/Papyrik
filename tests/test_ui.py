@@ -368,6 +368,66 @@ def test_decrypt_via_dispatch(app, window, monkeypatch, tmp_path):
     assert is_encrypted(out) is False
 
 
+def test_compress_via_dispatch(app, window, monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QFileDialog, QInputDialog
+
+    out = tmp_path / "c.pdf"
+    monkeypatch.setattr(
+        QInputDialog, "getItem",
+        staticmethod(lambda *a, **k: ("low", True)),
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(out), "")),
+    )
+    window._open_path(_fixture("scanned.pdf"))
+    window._on_run_tool("Compress")
+    assert _wait(app, lambda: not window._busy)
+    assert out.exists() and _page_count(out) == 1
+
+
+def test_page_numbers_via_dispatch(app, window, monkeypatch, tmp_path):
+    import pymupdf
+    from PyQt6.QtWidgets import QFileDialog, QInputDialog
+
+    out = tmp_path / "n.pdf"
+    monkeypatch.setattr(
+        QInputDialog, "getInt", staticmethod(lambda *a, **k: (1, True)))
+    monkeypatch.setattr(
+        QInputDialog, "getItem",
+        staticmethod(lambda *a, **k: ("bottom-center", True)))
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(out), "")))
+    window._open_path(_fixture("large_300p.pdf"))
+    window._on_run_tool("Page Numbers")
+    assert _wait(app, lambda: not window._busy)
+    with pymupdf.open(str(out)) as doc:
+        assert "3" in doc[2].get_text()
+
+
+def test_watermark_via_dispatch(app, window, monkeypatch, tmp_path):
+    import pymupdf
+    from PyQt6.QtWidgets import QFileDialog
+    from papyrik.ui.watermark_dialog import WatermarkDialog
+
+    out = tmp_path / "w.pdf"
+    monkeypatch.setattr(WatermarkDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(
+        WatermarkDialog, "params",
+        lambda self: {"text": "DRAFT", "opacity": 0.3,
+                      "rotation": 45, "position": "center"},
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(out), "")))
+    window._open_path(_fixture("cjk.pdf"))
+    window._on_run_tool("Watermark")
+    assert _wait(app, lambda: not window._busy)
+    with pymupdf.open(str(out)) as doc:
+        assert "DRAFT" in doc[0].get_text()
+
+
 def test_merge_loads_result(app, window):
     window._open_path(_fixture("cjk.pdf"))  # prime, then replace via merge
     monkeypatch_files = [str(_fixture("cjk.pdf")), str(_fixture("large_300p.pdf"))]

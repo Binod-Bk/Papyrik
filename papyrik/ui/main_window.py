@@ -41,10 +41,11 @@ from papyrik.core.document import (
     PdfEncryptedError,
     is_encrypted,
 )
-from papyrik.core.operations import convert, pages, security
+from papyrik.core.operations import convert, enhance, pages, security
 from papyrik.ui.page_viewer import PageViewer
 from papyrik.ui.thumbnail_view import ThumbnailView
 from papyrik.ui.tool_panel import ToolPanel
+from papyrik.ui.watermark_dialog import WatermarkDialog
 from papyrik.workers import OperationWorker, ThumbnailWorker
 
 TOOLS: list[tuple[str, list[str]]] = [
@@ -417,6 +418,9 @@ class MainWindow(QMainWindow):
             "PDF to Text": self._convert_to_text,
             "Encrypt": self._encrypt,
             "Decrypt": self._decrypt,
+            "Compress": self._compress,
+            "Watermark": self._watermark,
+            "Page Numbers": self._page_numbers,
         }
         handler = handlers.get(tool)
         if handler is not None:
@@ -561,6 +565,70 @@ class MainWindow(QMainWindow):
         self._export(security.decrypt, src, password, out,
                      busy="Decrypting…",
                      done=f"Saved decrypted {Path(out).name}")
+
+    # -- enhance ----------------------------------------------------------
+
+    def _compress(self) -> None:
+        if not self._need_document():
+            return
+        preset, ok = QInputDialog.getItem(
+            self, "Compress", "Quality preset:",
+            ["high", "balanced", "low"], 1, False,
+        )
+        if not ok:
+            return
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Save compressed PDF", "", "PDF files (*.pdf)"
+        )
+        if not out:
+            return
+        self._export(enhance.compress, self._current, out, preset,
+                     busy="Compressing…", done=f"Saved {Path(out).name}")
+
+    def _watermark(self) -> None:
+        if not self._need_document():
+            return
+        dialog = WatermarkDialog(self)
+        if not dialog.exec():
+            return
+        params = dialog.params()
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Save watermarked PDF", "", "PDF files (*.pdf)"
+        )
+        if not out:
+            return
+        self._export(
+            lambda src, dst: enhance.watermark(src, dst, **params),
+            self._current, out,
+            busy="Applying watermark…", done=f"Saved {Path(out).name}",
+        )
+
+    def _page_numbers(self) -> None:
+        if not self._need_document():
+            return
+        start, ok = QInputDialog.getInt(
+            self, "Page numbers", "Start numbering at:", 1, 0, 1_000_000
+        )
+        if not ok:
+            return
+        positions = ["bottom-center", "bottom-left", "bottom-right",
+                     "top-center", "top-left", "top-right"]
+        position, ok = QInputDialog.getItem(
+            self, "Page numbers", "Position:", positions, 0, False
+        )
+        if not ok:
+            return
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Save numbered PDF", "", "PDF files (*.pdf)"
+        )
+        if not out:
+            return
+        self._export(
+            lambda src, dst: enhance.page_numbers(
+                src, dst, start=start, position=position),
+            self._current, out,
+            busy="Adding page numbers…", done=f"Saved {Path(out).name}",
+        )
 
     # -- misc -------------------------------------------------------------
 
