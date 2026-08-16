@@ -43,6 +43,7 @@ from papyrik.core.document import (
     is_encrypted,
 )
 from papyrik.core.operations import (
+    annotate,
     convert,
     enhance,
     metadata as metadata_ops,
@@ -51,6 +52,7 @@ from papyrik.core.operations import (
 )
 from papyrik.ui.page_viewer import PageViewer
 from papyrik.ui.thumbnail_view import ThumbnailView
+from papyrik.ui.annotation_view import AnnotationView
 from papyrik.ui.metadata_dialog import MetadataDialog
 from papyrik.ui.tool_panel import ToolPanel
 from papyrik.ui.watermark_dialog import WatermarkDialog
@@ -481,6 +483,9 @@ class MainWindow(QMainWindow):
             "Watermark": self._watermark,
             "Page Numbers": self._page_numbers,
             "Metadata": self._metadata,
+            "Highlight": lambda: self._annotate("highlight"),
+            "Sticky Note": lambda: self._annotate("note"),
+            "Draw": lambda: self._annotate("draw"),
         }
         handler = handlers.get(tool)
         if handler is not None:
@@ -695,6 +700,33 @@ class MainWindow(QMainWindow):
                 src, dst, start=start, position=position),
             busy="Adding page numbers…",
             done="Page numbers added (use Save to keep changes)",
+        )
+
+    # -- annotate ---------------------------------------------------------
+
+    def _annotate(self, tool: str) -> None:
+        if not self._need_document():
+            return
+        selected = self.preview.selected_indices()
+        page = selected[0] if selected else 0
+        try:
+            view = AnnotationView(self._current, page, tool, self)
+        except Exception as exc:  # noqa: BLE001
+            self._error("Annotate", str(exc))
+            return
+        if not view.exec():
+            return
+        data = view.result_annotations()
+        if not any(data.values()):
+            self._status("No annotations added")
+            return
+        self._apply_edit(
+            lambda src, dst: annotate.apply_all(
+                src, dst, page,
+                highlights=data["highlights"], notes=data["notes"],
+                strokes=data["strokes"]),
+            busy="Applying annotations…",
+            done="Annotated (use Save to keep changes)",
         )
 
     # -- metadata ---------------------------------------------------------

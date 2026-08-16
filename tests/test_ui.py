@@ -471,6 +471,51 @@ def test_watermark_via_dispatch(app, window, monkeypatch):
         assert "DRAFT" in doc[0].get_text()
 
 
+def test_annotate_via_dispatch(app, window, monkeypatch):
+    import pymupdf
+    from papyrik.ui.annotation_view import AnnotationView
+
+    monkeypatch.setattr(AnnotationView, "__init__",
+                        lambda self, *a, **k: QDialog_init(self))
+    monkeypatch.setattr(AnnotationView, "exec", lambda self: 1)
+    monkeypatch.setattr(
+        AnnotationView, "result_annotations",
+        lambda self: {"highlights": [(72, 90, 300, 130)],
+                      "notes": [((100, 200), "note")],
+                      "strokes": [[(72, 72), (120, 100)]]},
+    )
+    window._open_path(_fixture("cjk.pdf"))
+    window._on_run_tool("Highlight")
+    assert _wait(app, lambda: not window._busy)
+    assert len(window._versions) == 2
+    with pymupdf.open(str(window._current)) as doc:
+        types = [a.type[1] for a in doc[0].annots()]
+    assert "Highlight" in types and "Text" in types and "Ink" in types
+
+
+def QDialog_init(obj):
+    from PyQt6.QtWidgets import QDialog
+    QDialog.__init__(obj)
+    obj.page = 0
+
+
+def test_annotation_view_maps_screen_to_pdf_coords(app, window):
+    from PyQt6.QtCore import QRectF
+    from papyrik.ui.annotation_view import AnnotationView
+
+    window._open_path(_fixture("cjk.pdf"))
+    view = AnnotationView(window._current, 0, "highlight", window)
+    scale = view._scale
+    # A 100x50 box in screen pixels should convert to box/scale in PDF points.
+    view._canvas.highlights.append(QRectF(scale * 10, scale * 20,
+                                          scale * 100, scale * 50))
+    result = view.result_annotations()
+    x0, y0, x1, y1 = result["highlights"][0]
+    assert round(x0) == 10 and round(y0) == 20
+    assert round(x1) == 110 and round(y1) == 70
+    view.close()
+
+
 def test_metadata_edit_via_dispatch(app, window, monkeypatch):
     from papyrik.core.operations import metadata as metadata_ops
     from papyrik.ui.metadata_dialog import MetadataDialog

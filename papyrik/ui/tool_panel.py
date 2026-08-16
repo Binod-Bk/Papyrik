@@ -46,6 +46,9 @@ RUN_LABELS: dict[str, str] = {
     "Watermark": "Add Watermark…",
     "Page Numbers": "Add Page Numbers…",
     "Metadata": "View / Edit…",
+    "Highlight": "Highlight a page…",
+    "Sticky Note": "Add notes to a page…",
+    "Draw": "Draw on a page…",
 }
 
 
