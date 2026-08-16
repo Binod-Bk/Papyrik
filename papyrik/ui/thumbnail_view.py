@@ -50,7 +50,7 @@ class _Grid(QListWidget):
         super().__init__()
         self.setViewMode(QListView.ViewMode.IconMode)
         self.setResizeMode(QListView.ResizeMode.Adjust)
-        self.setMovement(QListView.Movement.Static)
+        self.setMovement(QListView.Movement.Snap)
         self.setFlow(QListView.Flow.LeftToRight)
         self.setWrapping(True)
         self.setSpacing(14)
@@ -58,9 +58,14 @@ class _Grid(QListWidget):
         self.setGridSize(QSize(_ICON.width() + 30, _ICON.height() + 40))
         self.setUniformItemSizes(True)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+
+        self._drag_rows: list[int] = []
 
         self.itemDoubleClicked.connect(
             lambda item: self.page_activated.emit(item.data(_PAGE_ROLE))
@@ -70,6 +75,28 @@ class _Grid(QListWidget):
 
     def visual_order(self) -> list[int]:
         return [self.item(row).data(_PAGE_ROLE) for row in range(self.count())]
+
+    def startDrag(self, actions) -> None:  # noqa: N802 - Qt override
+        # Record the dragged rows now; the selection is reliable here, whereas
+        # at drop time it may have changed.
+        self._drag_rows = sorted(self.row(i) for i in self.selectedItems())
+        super().startDrag(actions)
+
+    # Accept internal moves everywhere so dropEvent is actually delivered
+    # (over items and empty space alike), rather than the drop being refused.
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if event.source() is self:
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if event.source() is self:
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+        else:
+            event.ignore()
 
     def _drop_row(self, event) -> int:
         """Insertion point (0..count) from the cursor position at drop time."""
@@ -84,20 +111,39 @@ class _Grid(QListWidget):
             row += 1
         return row
 
+    def _apply_move(self, rows: list[int], drop_row: int) -> None:
+        """Move item `rows` so they land at insertion point `drop_row`.
+
+        Rearranges the QListWidgetItems directly (take/insert) - deterministic
+        and independent of Qt's IconMode internal move.
+        """
+        rows = sorted(rows)
+        insert_at = drop_row - sum(1 for r in rows if r < drop_row)
+        taken = [self.takeItem(r) for r in reversed(rows)][::-1]
+        for offset, item in enumerate(taken):
+            self.insertItem(insert_at + offset, item)
+        self.clearSelection()
+        for row in range(insert_at, insert_at + len(taken)):
+            self.item(row).setSelected(True)
+
     def dropEvent(self, event) -> None:  # noqa: N802 - Qt override
-        # Handle the reorder manually; Qt's IconMode internal move is
-        # unreliable for rewriting row order, so we never call super().
-        src_rows = sorted(self.row(i) for i in self.selectedItems())
-        if not src_rows:
+        rows = self._drag_rows or sorted(self.row(i) for i in self.selectedItems())
+        self._drag_rows = []
+        if not rows:
             event.ignore()
             return
-        current = self.visual_order()
-        new_rows = compute_reorder(self.count(), src_rows, self._drop_row(event))
-        new_order = [current[r] for r in new_rows]
+        self._apply_move(rows, self._drop_row(event))
         event.setDropAction(Qt.DropAction.IgnoreAction)
         event.accept()
-        if new_order != current:
-            self.reorder_requested.emit(new_order)
+        self.reorder_requested.emit(self.visual_order())
+
+    def move_selected(self, where: str) -> None:
+        """Reorder via menu/keyboard: move selected pages to 'front' or 'end'."""
+        rows = sorted(self.row(i) for i in self.selectedItems())
+        if not rows:
+            return
+        self._apply_move(rows, 0 if where == "front" else self.count())
+        self.reorder_requested.emit(self.visual_order())
 
     # -- selection --------------------------------------------------------
 
@@ -124,6 +170,11 @@ class _Grid(QListWidget):
                        lambda: self.rotate_requested.emit(indices, -90))
         menu.addAction(f"Rotate {noun} 180°",
                        lambda: self.rotate_requested.emit(indices, 180))
+        menu.addSeparator()
+        menu.addAction(f"Move {noun} to front",
+                       lambda: self.move_selected("front"))
+        menu.addAction(f"Move {noun} to end",
+                       lambda: self.move_selected("end"))
         menu.addSeparator()
         menu.addAction(f"Extract {noun} to new PDF…",
                        lambda: self.extract_requested.emit(indices))

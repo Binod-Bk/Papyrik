@@ -162,6 +162,28 @@ def test_drag_reorder_moves_page_to_end(app, window):
     assert last_text == first_text
 
 
+def test_grid_apply_move_first_to_end(app):
+    from papyrik.ui.thumbnail_view import ThumbnailView
+
+    view = ThumbnailView()
+    view.set_page_count(5)
+    view._grid._apply_move([0], 5)
+    assert view._grid.visual_order() == [1, 2, 3, 4, 0]
+
+
+def test_grid_move_selected_emits_new_order(app):
+    from papyrik.ui.thumbnail_view import ThumbnailView
+
+    view = ThumbnailView()
+    view.set_page_count(4)
+    view._grid.item(0).setSelected(True)
+    captured: list[list[int]] = []
+    view.reorder_requested.connect(captured.append)
+    view._grid.move_selected("end")
+    assert view._grid.visual_order() == [1, 2, 3, 0]
+    assert captured == [[1, 2, 3, 0]]
+
+
 def test_view_page_opens_and_closes(app, window):
     window._open_path(_fixture("large_300p.pdf"))
     from papyrik.ui.page_viewer import PageViewer
