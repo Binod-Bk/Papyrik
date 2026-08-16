@@ -171,7 +171,7 @@ def test_grid_apply_move_first_to_end(app):
     assert view._grid.visual_order() == [1, 2, 3, 4, 0]
 
 
-def test_grid_move_selected_emits_new_order(app):
+def test_grid_move_selected_right_emits_new_order(app):
     from papyrik.ui.thumbnail_view import ThumbnailView
 
     view = ThumbnailView()
@@ -179,9 +179,22 @@ def test_grid_move_selected_emits_new_order(app):
     view._grid.item(0).setSelected(True)
     captured: list[list[int]] = []
     view.reorder_requested.connect(captured.append)
-    view._grid.move_selected("end")
-    assert view._grid.visual_order() == [1, 2, 3, 0]
-    assert captured == [[1, 2, 3, 0]]
+    view._grid.move_selected("right")
+    assert view._grid.visual_order() == [1, 0, 2, 3]  # page 0 nudged one right
+    assert captured == [[1, 0, 2, 3]]
+
+
+def test_grid_move_selected_left_at_edge_is_noop(app):
+    from papyrik.ui.thumbnail_view import ThumbnailView
+
+    view = ThumbnailView()
+    view.set_page_count(4)
+    view._grid.item(0).setSelected(True)
+    captured: list[list[int]] = []
+    view.reorder_requested.connect(captured.append)
+    view._grid.move_selected("left")  # already at the left edge
+    assert view._grid.visual_order() == [0, 1, 2, 3]
+    assert captured == []
 
 
 def test_view_page_opens_and_closes(app, window):

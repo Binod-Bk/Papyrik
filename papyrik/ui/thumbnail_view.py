@@ -137,13 +137,34 @@ class _Grid(QListWidget):
         event.accept()
         self.reorder_requested.emit(self.visual_order())
 
-    def move_selected(self, where: str) -> None:
-        """Reorder via menu/keyboard: move selected pages to 'front' or 'end'."""
+    def move_selected(self, direction: str) -> None:
+        """Nudge the selected pages one position 'left' or 'right'.
+
+        Moves the selection as a block; a no-op at the respective edge.
+        """
         rows = sorted(self.row(i) for i in self.selectedItems())
         if not rows:
             return
-        self._apply_move(rows, 0 if where == "front" else self.count())
+        if direction == "left":
+            if rows[0] == 0:
+                return
+            drop_row = rows[0] - 1
+        else:  # right
+            if rows[-1] >= self.count() - 1:
+                return
+            drop_row = rows[-1] + 2
+        self._apply_move(rows, drop_row)
         self.reorder_requested.emit(self.visual_order())
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_Left:
+                self.move_selected("left")
+                return
+            if event.key() == Qt.Key.Key_Right:
+                self.move_selected("right")
+                return
+        super().keyPressEvent(event)
 
     # -- selection --------------------------------------------------------
 
@@ -171,10 +192,10 @@ class _Grid(QListWidget):
         menu.addAction(f"Rotate {noun} 180°",
                        lambda: self.rotate_requested.emit(indices, 180))
         menu.addSeparator()
-        menu.addAction(f"Move {noun} to front",
-                       lambda: self.move_selected("front"))
-        menu.addAction(f"Move {noun} to end",
-                       lambda: self.move_selected("end"))
+        menu.addAction(f"Move {noun} left  (Ctrl+←)",
+                       lambda: self.move_selected("left"))
+        menu.addAction(f"Move {noun} right  (Ctrl+→)",
+                       lambda: self.move_selected("right"))
         menu.addSeparator()
         menu.addAction(f"Extract {noun} to new PDF…",
                        lambda: self.extract_requested.emit(indices))
