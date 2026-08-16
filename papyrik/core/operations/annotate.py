@@ -64,7 +64,7 @@ def text_note(input_pdf: str | Path, page: int, point: tuple, text: str,
     doc = _open_pdf(input_pdf)
     try:
         pg = _page(doc, page)
-        pg.add_text_annot(pymupdf.Point(point), text)
+        _add_note(pg, point, text)
         return _save(doc, output)
     finally:
         doc.close()
@@ -110,12 +110,18 @@ def apply_all(input_pdf: str | Path, output: str | Path, page: int, *,
             annot.update()
         for point, text in notes:
             if text:
-                pg.add_text_annot(pymupdf.Point(point), text)
+                _add_note(pg, point, text)
         if strokes:
             _add_ink(pg, strokes)
         return _save(doc, output)
     finally:
         doc.close()
+
+
+def _add_note(page: pymupdf.Page, point: tuple, text: str) -> None:
+    annot = page.add_text_annot(pymupdf.Point(point), text)
+    annot.set_info(content=text)  # ensure the note text is stored
+    annot.update()
 
 
 def _add_ink(page: pymupdf.Page, strokes: list[list[tuple]]) -> None:

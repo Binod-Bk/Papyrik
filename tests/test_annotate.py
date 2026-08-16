@@ -46,6 +46,16 @@ def test_text_note_adds_annotation(tmp_path):
     assert "Text" in _annot_types(out)
 
 
+def test_text_note_stores_content(tmp_path):
+    out = annotate.text_note(_fixture("cjk.pdf"), 0, (100, 100),
+                             "Remember me", tmp_path / "n.pdf")
+    # Read .info during iteration - PyMuPDF annot objects don't outlive the loop.
+    with pymupdf.open(str(out)) as doc:
+        contents = [a.info.get("content") for a in doc[0].annots()
+                    if a.type[1] == "Text"]
+    assert "Remember me" in contents
+
+
 def test_text_note_empty_raises(tmp_path):
     with pytest.raises(ValueError):
         annotate.text_note(_fixture("cjk.pdf"), 0, (10, 10), "", tmp_path / "x.pdf")

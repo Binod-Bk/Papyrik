@@ -499,20 +499,25 @@ def QDialog_init(obj):
     obj.page = 0
 
 
-def test_annotation_view_maps_screen_to_pdf_coords(app, window):
-    from PyQt6.QtCore import QRectF
+def test_annotation_view_returns_pdf_coords_and_undo(app, window):
+    from PyQt6.QtCore import QPointF, QRectF
     from papyrik.ui.annotation_view import AnnotationView
 
     window._open_path(_fixture("cjk.pdf"))
     view = AnnotationView(window._current, 0, "highlight", window)
-    scale = view._scale
-    # A 100x50 box in screen pixels should convert to box/scale in PDF points.
-    view._canvas.highlights.append(QRectF(scale * 10, scale * 20,
-                                          scale * 100, scale * 50))
+
+    # Annotations are stored in PDF points and returned unchanged.
+    view._canvas.highlights.append(QRectF(QPointF(10, 20), QPointF(110, 70)))
+    view._canvas._order.append("highlight")
+    view._canvas.notes.append((QPointF(50, 60), "hi"))
+    view._canvas._order.append("note")
+    assert view.result_annotations()["highlights"][0] == (10.0, 20.0, 110.0, 70.0)
+
+    # Undo removes only the last annotation (the note), not the highlight.
+    view._canvas.undo()
     result = view.result_annotations()
-    x0, y0, x1, y1 = result["highlights"][0]
-    assert round(x0) == 10 and round(y0) == 20
-    assert round(x1) == 110 and round(y1) == 70
+    assert result["notes"] == []
+    assert len(result["highlights"]) == 1
     view.close()
 
 
