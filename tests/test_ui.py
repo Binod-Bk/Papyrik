@@ -268,6 +268,45 @@ def test_close_cancel_vetoes(app, monkeypatch):
     win.close()
 
 
+def test_tool_panel_run_button_visibility(app):
+    from papyrik.ui.tool_panel import ToolPanel
+
+    panel = ToolPanel()
+    panel.show_tool("PDF to Text")
+    assert panel._run.isHidden() is False  # shown for runnable tools
+    panel.show_tool("Rotate")  # gesture-only tool, no Run button
+    assert panel._run.isHidden() is True
+
+
+def test_convert_to_text_via_dispatch(app, window, monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QFileDialog
+
+    out = tmp_path / "out.txt"
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(out), "")),
+    )
+    window._open_path(_fixture("large_300p.pdf"))
+    window._on_run_tool("PDF to Text")
+    assert _wait(app, lambda: not window._busy)
+    assert "Page 1 of 300" in out.read_text(encoding="utf-8")
+
+
+def test_images_to_pdf_via_dispatch(app, window, monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QFileDialog
+    from papyrik.core.operations import convert
+
+    pngs = convert.pdf_to_images(_fixture("cjk.pdf"), tmp_path, fmt="png")
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileNames",
+        staticmethod(lambda *a, **k: ([str(p) for p in pngs + pngs], "")),
+    )
+    window._on_run_tool("Images to PDF")
+    assert _wait(app, lambda: not window._busy)
+    assert _page_count(window._current) == 2
+    assert window._saved is False
+
+
 def test_merge_loads_result(app, window):
     window._open_path(_fixture("cjk.pdf"))  # prime, then replace via merge
     monkeypatch_files = [str(_fixture("cjk.pdf")), str(_fixture("large_300p.pdf"))]

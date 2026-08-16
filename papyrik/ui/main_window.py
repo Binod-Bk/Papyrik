@@ -41,7 +41,7 @@ from papyrik.core.document import (
     PdfEncryptedError,
     is_encrypted,
 )
-from papyrik.core.operations import pages
+from papyrik.core.operations import convert, pages
 from papyrik.ui.page_viewer import PageViewer
 from papyrik.ui.thumbnail_view import ThumbnailView
 from papyrik.ui.tool_panel import ToolPanel
@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
         self.preview.delete_requested.connect(self._on_delete)
         self.preview.extract_requested.connect(self._on_extract)
         self.preview.page_activated.connect(self._on_view_page)
+        self.tool_panel.run_requested.connect(self._on_run_tool)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.sidebar)
@@ -405,6 +406,96 @@ class MainWindow(QMainWindow):
             self._status(f"Split into {count} files in {Path(out_dir).name}")
 
         self._launch(pages.split_every_n, self._current, n, out_dir, on_ok=on_ok)
+
+    # -- convert ----------------------------------------------------------
+
+    def _on_run_tool(self, tool: str) -> None:
+        handlers = {
+            "PDF to Word": self._convert_to_word,
+            "PDF to Images": self._convert_to_images,
+            "Images to PDF": self._images_to_pdf,
+            "PDF to Text": self._convert_to_text,
+        }
+        handler = handlers.get(tool)
+        if handler is not None:
+            handler()
+
+    def _need_document(self) -> bool:
+        if self._busy:
+            return False
+        if self._current is None:
+            self._error("No document", "Open a PDF first.")
+            return False
+        return True
+
+    def _export(self, fn, *args, busy: str, done: str) -> None:
+        """Run an export op (does not touch the version stack)."""
+        self._set_busy(True, busy)
+
+        def on_ok(result: object) -> None:
+            self._set_busy(False)
+            self._status(done)
+
+        self._launch(fn, *args, on_ok=on_ok)
+
+    def _convert_to_word(self) -> None:
+        if not self._need_document():
+            return
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Convert to Word", "", "Word documents (*.docx)"
+        )
+        if not out:
+            return
+        self._export(convert.pdf_to_docx, self._current, out,
+                     busy="Converting to Word…",
+                     done=f"Saved {Path(out).name} (best effort on layout)")
+
+    def _convert_to_text(self) -> None:
+        if not self._need_document():
+            return
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Extract Text", "", "Text files (*.txt)"
+        )
+        if not out:
+            return
+        self._export(convert.pdf_to_text, self._current, out,
+                     busy="Extracting text…", done=f"Saved {Path(out).name}")
+
+    def _convert_to_images(self) -> None:
+        if not self._need_document():
+            return
+        fmt, ok = QInputDialog.getItem(
+            self, "Export Images", "Format:", ["png", "jpg"], 0, False
+        )
+        if not ok:
+            return
+        out_dir = QFileDialog.getExistingDirectory(self, "Save images to")
+        if not out_dir:
+            return
+        self._export(convert.pdf_to_images, self._current, out_dir, fmt,
+                     busy="Rendering images…",
+                     done=f"Exported images to {Path(out_dir).name}")
+
+    def _images_to_pdf(self) -> None:
+        if self._busy:
+            return
+        files, _ = QFileDialog.getOpenFileNames(
+            self, "Select images (in order)", "",
+            "Images (*.png *.jpg *.jpeg *.bmp *.tiff *.gif)"
+        )
+        if not files:
+            return
+        out = self._next_path()
+        self._set_busy(True, "Building PDF…")
+
+        def on_ok(result: object) -> None:
+            self._versions = [Path(str(result))]
+            self._saved = False
+            self._set_busy(False)
+            self._load_current("Built PDF from images")
+
+        self._launch(convert.images_to_pdf, [Path(f) for f in files], out,
+                     on_ok=on_ok)
 
     # -- misc -------------------------------------------------------------
 
