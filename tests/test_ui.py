@@ -68,7 +68,58 @@ def _page_count(path) -> int:
 def test_open_plain_seeds_version_stack(app, window):
     window._open_path(_fixture("cjk.pdf"))
     assert len(window._versions) == 1
-    assert window._versions[0] == _fixture("cjk.pdf")
+    # Base version is a workdir copy (immutable undo baseline), not the original.
+    assert window._versions[0].parent == window._workdir
+    assert window._source_path == _fixture("cjk.pdf")
+
+
+def test_save_overwrites_source_file(app, window, tmp_path):
+    src = tmp_path / "work.pdf"
+    src.write_bytes(_fixture("large_300p.pdf").read_bytes())
+    window._open_path(src)
+
+    window._on_rotate([0], 90)
+    assert _wait(app, lambda: not window._busy)
+    assert window._saved is False
+
+    assert window.save() is True                # overwrites src, no dialog
+    assert window._saved is True
+    assert PdfReader(str(src)).pages[0].rotation % 360 == 90
+
+    # Undo baseline is intact despite the overwrite.
+    window.undo()
+    assert _page_count(window._current) == 300
+    assert PdfReader(str(window._current)).pages[0].rotation % 360 == 0
+
+
+def test_enhance_edits_compose_then_save(app, window, tmp_path):
+    import pymupdf
+
+    src = tmp_path / "work.pdf"
+    src.write_bytes(_fixture("large_300p.pdf").read_bytes())
+    window._open_path(src)
+
+    # Page numbers, then a watermark on top - both should land in one document.
+    window._apply_edit(
+        lambda s, d: __import__("papyrik.core.operations.enhance",
+                                fromlist=["enhance"]).page_numbers(
+            s, d, start=1, position="bottom-center"),
+        busy="", done="",
+    )
+    assert _wait(app, lambda: not window._busy)
+    window._apply_edit(
+        lambda s, d: __import__("papyrik.core.operations.enhance",
+                                fromlist=["enhance"]).watermark(
+            s, d, text="DRAFT", opacity=0.3, rotation=45, position="center"),
+        busy="", done="",
+    )
+    assert _wait(app, lambda: not window._busy)
+    assert len(window._versions) == 3  # base + page numbers + watermark
+
+    window.save()
+    with pymupdf.open(str(src)) as doc:
+        text = doc[0].get_text()
+    assert "DRAFT" in text and "1" in text  # both edits present in saved file
 
 
 def test_open_corrupt_shows_no_document(app, window, monkeypatch):
@@ -368,63 +419,53 @@ def test_decrypt_via_dispatch(app, window, monkeypatch, tmp_path):
     assert is_encrypted(out) is False
 
 
-def test_compress_via_dispatch(app, window, monkeypatch, tmp_path):
-    from PyQt6.QtWidgets import QFileDialog, QInputDialog
+def test_compress_via_dispatch(app, window, monkeypatch):
+    from PyQt6.QtWidgets import QInputDialog
 
-    out = tmp_path / "c.pdf"
     monkeypatch.setattr(
         QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("low", True)),
     )
-    monkeypatch.setattr(
-        QFileDialog, "getSaveFileName",
-        staticmethod(lambda *a, **k: (str(out), "")),
-    )
     window._open_path(_fixture("scanned.pdf"))
     window._on_run_tool("Compress")
     assert _wait(app, lambda: not window._busy)
-    assert out.exists() and _page_count(out) == 1
+    assert len(window._versions) == 2          # applied as a new version
+    assert window._saved is False
+    assert _page_count(window._current) == 1
 
 
-def test_page_numbers_via_dispatch(app, window, monkeypatch, tmp_path):
+def test_page_numbers_via_dispatch(app, window, monkeypatch):
     import pymupdf
-    from PyQt6.QtWidgets import QFileDialog, QInputDialog
+    from PyQt6.QtWidgets import QInputDialog
 
-    out = tmp_path / "n.pdf"
     monkeypatch.setattr(
         QInputDialog, "getInt", staticmethod(lambda *a, **k: (1, True)))
     monkeypatch.setattr(
         QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("bottom-center", True)))
-    monkeypatch.setattr(
-        QFileDialog, "getSaveFileName",
-        staticmethod(lambda *a, **k: (str(out), "")))
     window._open_path(_fixture("large_300p.pdf"))
     window._on_run_tool("Page Numbers")
     assert _wait(app, lambda: not window._busy)
-    with pymupdf.open(str(out)) as doc:
+    assert len(window._versions) == 2
+    with pymupdf.open(str(window._current)) as doc:
         assert "3" in doc[2].get_text()
 
 
-def test_watermark_via_dispatch(app, window, monkeypatch, tmp_path):
+def test_watermark_via_dispatch(app, window, monkeypatch):
     import pymupdf
-    from PyQt6.QtWidgets import QFileDialog
     from papyrik.ui.watermark_dialog import WatermarkDialog
 
-    out = tmp_path / "w.pdf"
     monkeypatch.setattr(WatermarkDialog, "exec", lambda self: 1)
     monkeypatch.setattr(
         WatermarkDialog, "params",
         lambda self: {"text": "DRAFT", "opacity": 0.3,
                       "rotation": 45, "position": "center"},
     )
-    monkeypatch.setattr(
-        QFileDialog, "getSaveFileName",
-        staticmethod(lambda *a, **k: (str(out), "")))
     window._open_path(_fixture("cjk.pdf"))
     window._on_run_tool("Watermark")
     assert _wait(app, lambda: not window._busy)
-    with pymupdf.open(str(out)) as doc:
+    assert len(window._versions) == 2
+    with pymupdf.open(str(window._current)) as doc:
         assert "DRAFT" in doc[0].get_text()
 
 

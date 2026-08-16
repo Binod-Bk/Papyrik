@@ -93,7 +93,8 @@ class MainWindow(QMainWindow):
         self._versions: list[Path] = []
         self._counter = 0
         self._busy = False
-        self._saved = True  # False once there are edits not yet exported
+        self._saved = True  # False once there are edits not yet saved
+        self._source_path: Path | None = None  # file Save writes back to
 
         self._op_worker: OperationWorker | None = None
         self._thumb_worker: ThumbnailWorker | None = None
@@ -143,9 +144,14 @@ class MainWindow(QMainWindow):
         self.act_merge = file_menu.addAction("&Merge PDFs…")
         self.act_merge.triggered.connect(self.merge_files)
 
-        self.act_save = file_menu.addAction("Save &As…")
-        self.act_save.setShortcut(QKeySequence.StandardKey.SaveAs)
-        self.act_save.triggered.connect(self.save_as)
+        file_menu.addSeparator()
+        self.act_save = file_menu.addAction("&Save")
+        self.act_save.setShortcut(QKeySequence.StandardKey.Save)
+        self.act_save.triggered.connect(self.save)
+
+        self.act_save_as = file_menu.addAction("Save &As…")
+        self.act_save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
+        self.act_save_as.triggered.connect(self.save_as)
 
         file_menu.addSeparator()
         act_quit = file_menu.addAction("&Quit")
@@ -174,6 +180,7 @@ class MainWindow(QMainWindow):
     def _refresh_actions(self) -> None:
         has_doc = self._current is not None
         self.act_save.setEnabled(has_doc and not self._busy)
+        self.act_save_as.setEnabled(has_doc and not self._busy)
         self.act_split.setEnabled(has_doc and not self._busy)
         self.act_undo.setEnabled(len(self._versions) > 1 and not self._busy)
         self.act_open.setEnabled(not self._busy)
@@ -205,14 +212,23 @@ class MainWindow(QMainWindow):
             self._error("Cannot open file", str(exc))
             return
 
-        working = path
         if encrypted:
             working = self._decrypt_to_workdir(path)
             if working is None:
                 return  # user cancelled or gave up
+        else:
+            # Copy into the workdir so the undo baseline is immutable and a
+            # later Save (overwrite) can't corrupt the originally opened file.
+            working = self._next_path()
+            try:
+                shutil.copyfile(path, working)
+            except OSError as exc:
+                self._error("Cannot open file", str(exc))
+                return
 
         self._versions = [working]
-        self._saved = True  # freshly opened; no unsaved edits yet
+        self._source_path = path       # Save writes back here
+        self._saved = True             # freshly opened; no unsaved edits yet
         # NB: never reset self._counter here - _next_path() must stay monotonic
         # within the per-session workdir, or a later op can overwrite the base
         # version (breaks undo, notably after decrypting an encrypted file).
@@ -356,21 +372,42 @@ class MainWindow(QMainWindow):
                 self._saved = True  # back to the originally opened document
             self._load_current("Undone")
 
-    def save_as(self) -> None:
-        if self._current is None:
-            return
+    def save(self) -> bool:
+        """Overwrite the file this document was opened from / last saved to.
+
+        Falls back to Save As when there is no such file (e.g. a document built
+        from images or a merge). Returns True if the document was saved.
+        """
+        if self._current is None or self._busy:
+            return False
+        if self._source_path is None:
+            return self.save_as()
+        try:
+            shutil.copyfile(self._current, self._source_path)
+        except OSError as exc:
+            self._error("Save failed", str(exc))
+            return False
+        self._saved = True
+        self._status(f"Saved {self._source_path.name}")
+        return True
+
+    def save_as(self) -> bool:
+        if self._current is None or self._busy:
+            return False
         out, _ = QFileDialog.getSaveFileName(
             self, "Save PDF as", "", "PDF files (*.pdf)"
         )
         if not out:
-            return
+            return False
         try:
             shutil.copyfile(self._current, out)
         except OSError as exc:
             self._error("Save failed", str(exc))
-            return
+            return False
+        self._source_path = Path(out)  # subsequent Save overwrites here
         self._saved = True
         self._status(f"Saved {Path(out).name}")
+        return True
 
     # -- merge / split ----------------------------------------------------
 
@@ -389,7 +426,8 @@ class MainWindow(QMainWindow):
 
         def on_ok(result: object) -> None:
             self._versions = [Path(str(result))]
-            self._saved = False  # merged output exists only in the workdir
+            self._source_path = None  # built here; Save falls back to Save As
+            self._saved = False       # merged output exists only in the workdir
             self._set_busy(False)
             self._load_current("Merged")
 
@@ -451,6 +489,25 @@ class MainWindow(QMainWindow):
             self._status(done)
 
         self._launch(fn, *args, on_ok=on_ok)
+
+    def _apply_edit(self, op, *, busy: str, done: str) -> None:
+        """Apply an in-place edit to the working document.
+
+        `op` is a callable(src_path, dst_path) -> path. The result becomes a new
+        version so edits compose and can be undone and Saved.
+        """
+        if self._busy or self._current is None:
+            return
+        out = self._next_path()
+        self._set_busy(True, busy)
+
+        def on_ok(result: object) -> None:
+            self._versions.append(Path(str(result)))
+            self._saved = False
+            self._set_busy(False)
+            self._load_current(done)
+
+        self._launch(op, self._current, out, on_ok=on_ok)
 
     def _convert_to_word(self) -> None:
         if not self._need_document():
@@ -521,6 +578,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(result: object) -> None:
             self._versions = [Path(str(result))]
+            self._source_path = None  # built here; Save falls back to Save As
             self._saved = False
             self._set_busy(False)
             self._load_current("Built PDF from images")
@@ -585,13 +643,10 @@ class MainWindow(QMainWindow):
         )
         if not ok:
             return
-        out, _ = QFileDialog.getSaveFileName(
-            self, "Save compressed PDF", "", "PDF files (*.pdf)"
+        self._apply_edit(
+            lambda src, dst: enhance.compress(src, dst, preset),
+            busy="Compressing…", done="Compressed (use Save to keep changes)",
         )
-        if not out:
-            return
-        self._export(enhance.compress, self._current, out, preset,
-                     busy="Compressing…", done=f"Saved {Path(out).name}")
 
     def _watermark(self) -> None:
         if not self._need_document():
@@ -600,15 +655,10 @@ class MainWindow(QMainWindow):
         if not dialog.exec():
             return
         params = dialog.params()
-        out, _ = QFileDialog.getSaveFileName(
-            self, "Save watermarked PDF", "", "PDF files (*.pdf)"
-        )
-        if not out:
-            return
-        self._export(
+        self._apply_edit(
             lambda src, dst: enhance.watermark(src, dst, **params),
-            self._current, out,
-            busy="Applying watermark…", done=f"Saved {Path(out).name}",
+            busy="Applying watermark…",
+            done="Watermarked (use Save to keep changes)",
         )
 
     def _page_numbers(self) -> None:
@@ -626,16 +676,11 @@ class MainWindow(QMainWindow):
         )
         if not ok:
             return
-        out, _ = QFileDialog.getSaveFileName(
-            self, "Save numbered PDF", "", "PDF files (*.pdf)"
-        )
-        if not out:
-            return
-        self._export(
+        self._apply_edit(
             lambda src, dst: enhance.page_numbers(
                 src, dst, start=start, position=position),
-            self._current, out,
-            busy="Adding page numbers…", done=f"Saved {Path(out).name}",
+            busy="Adding page numbers…",
+            done="Page numbers added (use Save to keep changes)",
         )
 
     # -- metadata ---------------------------------------------------------
@@ -699,8 +744,7 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 return
             if choice == QMessageBox.StandardButton.Save:
-                self.save_as()
-                if not self._saved:  # user backed out of the save dialog
+                if not self.save():  # user backed out of the save dialog
                     event.ignore()
                     return
 
