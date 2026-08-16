@@ -50,6 +50,7 @@ RUN_LABELS: dict[str, str] = {
     "Sticky Note": "Add notes to a page…",
     "Draw": "Draw on a page…",
     "Fill Form": "Fill Form…",
+    "Batch Folder": "Open Batch…",
 }
 
 

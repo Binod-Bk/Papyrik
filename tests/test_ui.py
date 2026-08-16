@@ -569,6 +569,34 @@ def test_annotation_note_click_finds_existing(app, window):
     view.close()
 
 
+def test_batch_dialog_runs_over_folder(app, window, monkeypatch, tmp_path):
+    import shutil
+    from PyQt6.QtWidgets import QInputDialog
+    from papyrik.ui.batch_dialog import BatchDialog
+
+    src = tmp_path / "in"
+    src.mkdir()
+    shutil.copyfile(_fixture("cjk.pdf"), src / "a.pdf")
+    shutil.copyfile(_fixture("form.pdf"), src / "b.pdf")
+    out = tmp_path / "out"
+    out.mkdir()
+
+    dialog = BatchDialog(window)
+    dialog._in_dir = str(src)
+    dialog._out_dir = str(out)
+    dialog._op.setCurrentText("Compress")
+    # Compress asks for a preset via getItem.
+    monkeypatch.setattr(QInputDialog, "getItem",
+                        staticmethod(lambda *a, **k: ("high", True)))
+
+    dialog._start()
+    assert _wait(app, lambda: dialog._worker is None)  # worker finished+cleaned
+    assert (out / "a_compressed.pdf").exists()
+    assert (out / "b_compressed.pdf").exists()
+    assert "2 succeeded" in dialog._log.toPlainText()
+    dialog.close()
+
+
 def test_fill_form_via_dispatch(app, window, monkeypatch):
     from papyrik.core.operations import forms
     from papyrik.ui.form_dialog import FormDialog

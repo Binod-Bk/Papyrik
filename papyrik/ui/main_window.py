@@ -54,6 +54,7 @@ from papyrik.core.operations import (
 from papyrik.ui.page_viewer import PageViewer
 from papyrik.ui.thumbnail_view import ThumbnailView
 from papyrik.ui.annotation_view import AnnotationView
+from papyrik.ui.batch_dialog import BatchDialog
 from papyrik.ui.form_dialog import FormDialog
 from papyrik.ui.metadata_dialog import MetadataDialog
 from papyrik.ui.tool_panel import ToolPanel
@@ -489,6 +490,7 @@ class MainWindow(QMainWindow):
             "Sticky Note": lambda: self._annotate("note"),
             "Draw": lambda: self._annotate("draw"),
             "Fill Form": self._fill_form,
+            "Batch Folder": self._batch,
         }
         handler = handlers.get(tool)
         if handler is not None:
@@ -704,6 +706,12 @@ class MainWindow(QMainWindow):
             busy="Adding page numbers…",
             done="Page numbers added (use Save to keep changes)",
         )
+
+    # -- batch ------------------------------------------------------------
+
+    def _batch(self) -> None:
+        # Batch operates on a folder, not the open document, so it stands alone.
+        BatchDialog(self).exec()
 
     # -- forms ------------------------------------------------------------
 

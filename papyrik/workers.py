@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from papyrik.core import batch
 from papyrik.core.document import PdfDocument
 
 
@@ -37,6 +38,35 @@ class OperationWorker(QThread):
             self.failed.emit(str(exc))
             return
         self.finished_ok.emit(result)
+
+
+class BatchWorker(QThread):
+    """Runs a folder batch off the UI thread, reporting per-file progress."""
+
+    progress = pyqtSignal(int, int)     # done, total
+    finished_ok = pyqtSignal(object)    # list[BatchResult]
+    failed = pyqtSignal(str)
+
+    def __init__(self, folder, operation, output_dir, *,
+                 ext: str = "pdf", suffix: str = "") -> None:
+        super().__init__()
+        self._folder = folder
+        self._operation = operation
+        self._output_dir = output_dir
+        self._ext = ext
+        self._suffix = suffix
+
+    def run(self) -> None:
+        try:
+            results = batch.run_batch(
+                self._folder, self._operation, self._output_dir,
+                ext=self._ext, suffix=self._suffix,
+                progress=lambda done, total: self.progress.emit(done, total),
+            )
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        self.finished_ok.emit(results)
 
 
 class ThumbnailWorker(QThread):
