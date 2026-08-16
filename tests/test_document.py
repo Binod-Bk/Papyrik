@@ -111,6 +111,24 @@ def test_render_png_out_of_range():
             doc.render_png(5)
 
 
+def test_text_notes_reads_content(tmp_path):
+    from papyrik.core.operations import annotate
+
+    annotated = annotate.text_note(_fixture("cjk.pdf"), 0, (120, 150),
+                                   "Read me back", tmp_path / "n.pdf")
+    with PdfDocument(annotated) as doc:
+        notes = doc.text_notes(0)
+    assert len(notes) == 1
+    (x0, y0, x1, y1), content = notes[0]
+    assert content == "Read me back"
+    assert x1 > x0 and y1 > y0  # a real icon rectangle
+
+
+def test_text_notes_empty_when_none():
+    with PdfDocument(_fixture("cjk.pdf")) as doc:
+        assert doc.text_notes(0) == []
+
+
 def test_thumbnail_returns_bounded_pixmap():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PyQt6.QtWidgets import QApplication

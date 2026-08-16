@@ -48,6 +48,36 @@ Estimated: a day-plus on its own. Ship v1 first.
 
 ---
 
+## Annotation editing (post-launch enhancement)
+
+**Pitch:** Edit annotations Papyrik created, even after save/close/reopen —
+move a sticky note, re-word it, delete a highlight or drawing.
+
+**Why it's feasible (unlike watermark removal):** highlights, sticky notes and
+ink are real PDF annotation objects, not marks baked into the page content. They
+can be enumerated, moved, edited and deleted.
+
+**Why it doesn't work today:** the annotator only *adds* — it starts with a blank
+overlay and never loads the page's existing annotations as editable objects.
+
+### Shape of work
+- On opening the annotator, read existing annotations into the canvas:
+  Highlight -> rect, Text -> point + `info["content"]`, Ink -> `annot.vertices`
+  stroke lists.
+- Render the page background with `get_pixmap(annots=False)` so annotations
+  aren't drawn twice.
+- Add a select/move tool: click to select, drag to move, Delete to remove; note
+  text edit already exists (click a note).
+- On Apply, delete only the annotation types we manage (Highlight, Text, Ink) —
+  never Widget/form annotations — then re-add from the canvas state.
+- Tests over a fixture with known annotations: load -> move/edit/delete ->
+  round-trip.
+
+Estimated: ~half a day. Deferred to keep the 3-day ship on track. (Note-*viewing*
+was pulled forward and shipped in v1.)
+
+---
+
 ## Other parking-lot ideas
 - Watermark as a removable layer (OCG) so Papyrik's own watermarks can be removed
   later. Tradeoff: OCG content-removal is fiddly in PyMuPDF; annotations are

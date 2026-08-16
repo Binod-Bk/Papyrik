@@ -272,6 +272,28 @@ def test_grid_move_selected_left_at_edge_is_noop(app):
     assert captured == []
 
 
+def test_page_viewer_reveals_note_text(app, window, monkeypatch, tmp_path):
+    from PyQt6.QtCore import QPointF
+    from papyrik.core.operations import annotate
+    from papyrik.ui.page_viewer import PageViewer
+
+    src = tmp_path / "noted.pdf"
+    annotate.text_note(_fixture("cjk.pdf"), 0, (120, 150), "Hello note", src)
+    window._open_path(src)
+
+    viewer = PageViewer(window._current, 0, 1, window)
+    assert len(viewer._notes) == 1
+
+    # Clicking on the note icon location resolves to its text.
+    (x0, y0, x1, y1), _content = viewer._notes[0]
+    scale = viewer._scale()
+    click = QPointF((x0 + x1) / 2 * scale, (y0 + y1) / 2 * scale)
+    assert viewer._note_at(click) == "Hello note"
+    # Clicking far away resolves to nothing.
+    assert viewer._note_at(QPointF(1, 1)) is None
+    viewer.close()
+
+
 def test_view_page_opens_and_closes(app, window):
     window._open_path(_fixture("large_300p.pdf"))
     from papyrik.ui.page_viewer import PageViewer

@@ -117,6 +117,23 @@ class PdfDocument:
     def page_count(self) -> int:
         return self._require_open().page_count
 
+    def text_notes(self, index: int) -> list[tuple[tuple, str]]:
+        """Sticky-note annotations on page `index` as ((x0,y0,x1,y1), text).
+
+        Lets the UI show a note's text (the page render only shows its icon).
+        """
+        doc = self._require_open()
+        if not 0 <= index < doc.page_count:
+            raise IndexError(f"Page {index} out of range.")
+        page = doc.load_page(index)
+        notes: list[tuple[tuple, str]] = []
+        for annot in page.annots() or ():
+            if annot.type[1] == "Text":  # read fields during iteration
+                r = annot.rect
+                notes.append(((r.x0, r.y0, r.x1, r.y1),
+                              annot.info.get("content", "")))
+        return notes
+
     # -- saving -----------------------------------------------------------
 
     def save_as(self, path: str | Path) -> Path:
