@@ -1,0 +1,16 @@
+# Papyrik — pinned dependencies (Python 3.11+)
+# GUI
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.1
+PyQt6-sip==13.12.0
+
+# PDF engines
+PyMuPDF==1.28.2
+pypdf==6.16.1
+pdf2docx==0.5.13
+
+# Imaging
+Pillow==12.3.0
+
+# Packaging
+PyInstaller==6.22.1

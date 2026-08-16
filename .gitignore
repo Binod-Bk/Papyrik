@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Test artifacts / scratch output
+*.tmp
+/output/
+tests/_out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
