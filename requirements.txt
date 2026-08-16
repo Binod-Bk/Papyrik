@@ -8,6 +8,7 @@ PyQt6-sip==13.12.0
 PyMuPDF==1.28.2
 pypdf==6.16.1
 pdf2docx==0.5.13
+cryptography==50.0.0  # required by pypdf for AES-256 encrypt/decrypt
 
 # Imaging
 Pillow==12.3.0

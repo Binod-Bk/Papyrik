@@ -327,6 +327,47 @@ def test_images_to_pdf_via_dispatch(app, window, monkeypatch, tmp_path):
     assert window._saved is False
 
 
+def test_encrypt_via_dispatch(app, window, monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QFileDialog, QInputDialog
+    from papyrik.core.document import is_encrypted
+
+    out = tmp_path / "enc.pdf"
+    monkeypatch.setattr(
+        QInputDialog, "getText",
+        staticmethod(lambda *a, **k: ("hunter2", True)),
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(out), "")),
+    )
+    window._open_path(_fixture("cjk.pdf"))
+    window._on_run_tool("Encrypt")
+    assert _wait(app, lambda: not window._busy)
+    assert is_encrypted(out) is True
+
+
+def test_decrypt_via_dispatch(app, window, monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QFileDialog, QInputDialog
+    from papyrik.core.document import is_encrypted
+
+    out = tmp_path / "dec.pdf"
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName",
+        staticmethod(lambda *a, **k: (str(_fixture("encrypted.pdf")), "")),
+    )
+    monkeypatch.setattr(
+        QInputDialog, "getText",
+        staticmethod(lambda *a, **k: (PASSWORD, True)),
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(out), "")),
+    )
+    window._on_run_tool("Decrypt")  # standalone; no open document needed
+    assert _wait(app, lambda: not window._busy)
+    assert is_encrypted(out) is False
+
+
 def test_merge_loads_result(app, window):
     window._open_path(_fixture("cjk.pdf"))  # prime, then replace via merge
     monkeypatch_files = [str(_fixture("cjk.pdf")), str(_fixture("large_300p.pdf"))]

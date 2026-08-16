@@ -41,7 +41,7 @@ from papyrik.core.document import (
     PdfEncryptedError,
     is_encrypted,
 )
-from papyrik.core.operations import convert, pages
+from papyrik.core.operations import convert, pages, security
 from papyrik.ui.page_viewer import PageViewer
 from papyrik.ui.thumbnail_view import ThumbnailView
 from papyrik.ui.tool_panel import ToolPanel
@@ -415,6 +415,8 @@ class MainWindow(QMainWindow):
             "PDF to Images": self._convert_to_images,
             "Images to PDF": self._images_to_pdf,
             "PDF to Text": self._convert_to_text,
+            "Encrypt": self._encrypt,
+            "Decrypt": self._decrypt,
         }
         handler = handlers.get(tool)
         if handler is not None:
@@ -513,6 +515,52 @@ class MainWindow(QMainWindow):
 
         self._launch(convert.images_to_pdf, [Path(f) for f in files], out,
                      on_ok=on_ok)
+
+    # -- security ---------------------------------------------------------
+
+    def _encrypt(self) -> None:
+        if not self._need_document():
+            return
+        password, ok = QInputDialog.getText(
+            self, "Set password", "New password for the PDF:",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return
+        if not password:
+            self._error("Encrypt", "Password cannot be empty.")
+            return
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Save encrypted PDF", "", "PDF files (*.pdf)"
+        )
+        if not out:
+            return
+        self._export(security.encrypt, self._current, password, out,
+                     busy="Encrypting…",
+                     done=f"Saved encrypted {Path(out).name}")
+
+    def _decrypt(self) -> None:
+        if self._busy:
+            return
+        src, _ = QFileDialog.getOpenFileName(
+            self, "Select a password-protected PDF", "", "PDF files (*.pdf)"
+        )
+        if not src:
+            return
+        password, ok = QInputDialog.getText(
+            self, "Remove password", f"Password for '{Path(src).name}':",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Save decrypted PDF", "", "PDF files (*.pdf)"
+        )
+        if not out:
+            return
+        self._export(security.decrypt, src, password, out,
+                     busy="Decrypting…",
+                     done=f"Saved decrypted {Path(out).name}")
 
     # -- misc -------------------------------------------------------------
 

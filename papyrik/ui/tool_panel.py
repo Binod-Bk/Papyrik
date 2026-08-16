@@ -40,6 +40,8 @@ RUN_LABELS: dict[str, str] = {
     "PDF to Images": "Export Images…",
     "Images to PDF": "Choose Images…",
     "PDF to Text": "Extract Text…",
+    "Encrypt": "Set Password…",
+    "Decrypt": "Remove Password…",
 }
 
 
