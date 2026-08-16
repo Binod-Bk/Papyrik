@@ -292,6 +292,26 @@ def test_convert_to_text_via_dispatch(app, window, monkeypatch, tmp_path):
     assert "Page 1 of 300" in out.read_text(encoding="utf-8")
 
 
+def test_convert_to_text_warns_on_image_only(app, window, monkeypatch, tmp_path):
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+    out = tmp_path / "empty.txt"
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(out), "")),
+    )
+    warned = {}
+    monkeypatch.setattr(
+        QMessageBox, "information",
+        staticmethod(lambda *a, **k: warned.setdefault("shown", True)),
+    )
+    window._open_path(_fixture("scanned.pdf"))  # image-only, no text layer
+    window._on_run_tool("PDF to Text")
+    assert _wait(app, lambda: not window._busy)
+    assert warned.get("shown")                 # user was told why it's empty
+    assert out.read_text(encoding="utf-8").strip() == ""
+
+
 def test_images_to_pdf_via_dispatch(app, window, monkeypatch, tmp_path):
     from PyQt6.QtWidgets import QFileDialog
     from papyrik.core.operations import convert

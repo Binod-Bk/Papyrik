@@ -458,8 +458,25 @@ class MainWindow(QMainWindow):
         )
         if not out:
             return
-        self._export(convert.pdf_to_text, self._current, out,
-                     busy="Extracting text…", done=f"Saved {Path(out).name}")
+        self._set_busy(True, "Extracting text…")
+
+        def on_ok(result: object) -> None:
+            self._set_busy(False)
+            path = Path(str(result))
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if text.strip():
+                self._status(f"Saved {path.name}")
+            else:
+                QMessageBox.information(
+                    self, "No text found",
+                    "This PDF has no extractable text layer - it looks scanned "
+                    "or image-only, so the file was saved empty.\n\n"
+                    "Papyrik doesn't do OCR (out of scope). To capture the "
+                    "pages as images instead, use PDF to Images.",
+                )
+                self._status("No text layer found - saved empty file")
+
+        self._launch(convert.pdf_to_text, self._current, out, on_ok=on_ok)
 
     def _convert_to_images(self) -> None:
         if not self._need_document():

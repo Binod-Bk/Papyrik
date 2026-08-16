@@ -33,6 +33,12 @@ def test_pdf_to_text_encrypted_raises(tmp_path):
         convert.pdf_to_text(_fixture("encrypted.pdf"), tmp_path / "t.txt")
 
 
+def test_pdf_to_text_image_only_is_empty(tmp_path):
+    # A scanned/image-only PDF has no text layer -> empty output (no OCR).
+    out = convert.pdf_to_text(_fixture("scanned.pdf"), tmp_path / "t.txt")
+    assert out.read_text(encoding="utf-8").strip() == ""
+
+
 # -- pdf_to_images -------------------------------------------------------
 
 def test_pdf_to_images_png(tmp_path):
