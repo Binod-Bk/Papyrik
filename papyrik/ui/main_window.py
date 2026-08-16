@@ -42,6 +42,7 @@ from papyrik.core.document import (
     is_encrypted,
 )
 from papyrik.core.operations import pages
+from papyrik.ui.page_viewer import PageViewer
 from papyrik.ui.thumbnail_view import ThumbnailView
 from papyrik.ui.tool_panel import ToolPanel
 from papyrik.workers import OperationWorker, ThumbnailWorker
@@ -97,6 +98,7 @@ class MainWindow(QMainWindow):
         self.preview.rotate_requested.connect(self._on_rotate)
         self.preview.delete_requested.connect(self._on_delete)
         self.preview.extract_requested.connect(self._on_extract)
+        self.preview.page_activated.connect(self._on_view_page)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.sidebar)
@@ -314,6 +316,18 @@ class MainWindow(QMainWindow):
             self._status(f"Extracted {len(indices)} page(s) to {Path(str(result)).name}")
 
         self._launch(pages.extract_pages, self._current, indices, out, on_ok=on_ok)
+
+    def _on_view_page(self, index: int) -> None:
+        if self._current is None or self._busy:
+            return
+        try:
+            with PdfDocument(self._current) as doc:
+                count = doc.page_count
+            viewer = PageViewer(self._current, index, count, self)
+        except Exception as exc:  # noqa: BLE001
+            self._error("Cannot open page", str(exc))
+            return
+        viewer.exec()
 
     # -- undo / save ------------------------------------------------------
 

@@ -21,7 +21,20 @@ from PyQt6.QtWidgets import (
 )
 
 _PAGE_ROLE = Qt.ItemDataRole.UserRole
-_ICON = QSize(150, 200)
+_ICON = QSize(200, 283)  # ~A4 aspect ratio
+
+
+def compute_reorder(count: int, src_rows: list[int], drop_row: int) -> list[int]:
+    """New row order after moving `src_rows` so they land at `drop_row`.
+
+    `drop_row` is an insertion point in original-row coordinates (0..count).
+    Pure and side-effect free so it can be unit-tested without a drag gesture.
+    """
+    src = list(dict.fromkeys(src_rows))  # de-dup, keep order
+    src_set = set(src)
+    remaining = [r for r in range(count) if r not in src_set]
+    insert_pos = sum(1 for r in remaining if r < drop_row)
+    return remaining[:insert_pos] + src + remaining[insert_pos:]
 
 
 class _Grid(QListWidget):
@@ -31,6 +44,7 @@ class _Grid(QListWidget):
     rotate_requested = pyqtSignal(list, int)      # indices, degrees
     delete_requested = pyqtSignal(list)           # indices
     extract_requested = pyqtSignal(list)          # indices
+    page_activated = pyqtSignal(int)              # double-clicked page index
 
     def __init__(self) -> None:
         super().__init__()
@@ -39,25 +53,51 @@ class _Grid(QListWidget):
         self.setMovement(QListView.Movement.Static)
         self.setFlow(QListView.Flow.LeftToRight)
         self.setWrapping(True)
-        self.setSpacing(12)
+        self.setSpacing(14)
         self.setIconSize(_ICON)
-        self.setGridSize(QSize(_ICON.width() + 24, _ICON.height() + 36))
+        self.setGridSize(QSize(_ICON.width() + 30, _ICON.height() + 40))
         self.setUniformItemSizes(True)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+
+        self.itemDoubleClicked.connect(
+            lambda item: self.page_activated.emit(item.data(_PAGE_ROLE))
+        )
 
     # -- reordering -------------------------------------------------------
 
     def visual_order(self) -> list[int]:
         return [self.item(row).data(_PAGE_ROLE) for row in range(self.count())]
 
+    def _drop_row(self, event) -> int:
+        """Insertion point (0..count) from the cursor position at drop time."""
+        pos = event.position().toPoint()
+        index = self.indexAt(pos)
+        if not index.isValid():
+            return self.count()  # dropped past the last item
+        row = index.row()
+        rect = self.visualRect(index)
+        # Past the horizontal midpoint of the target -> insert after it.
+        if pos.x() > rect.center().x():
+            row += 1
+        return row
+
     def dropEvent(self, event) -> None:  # noqa: N802 - Qt override
-        before = self.visual_order()
-        super().dropEvent(event)
-        after = self.visual_order()
-        if after != before:
-            self.reorder_requested.emit(after)
+        # Handle the reorder manually; Qt's IconMode internal move is
+        # unreliable for rewriting row order, so we never call super().
+        src_rows = sorted(self.row(i) for i in self.selectedItems())
+        if not src_rows:
+            event.ignore()
+            return
+        current = self.visual_order()
+        new_rows = compute_reorder(self.count(), src_rows, self._drop_row(event))
+        new_order = [current[r] for r in new_rows]
+        event.setDropAction(Qt.DropAction.IgnoreAction)
+        event.accept()
+        if new_order != current:
+            self.reorder_requested.emit(new_order)
 
     # -- selection --------------------------------------------------------
 
@@ -99,11 +139,14 @@ class ThumbnailView(QStackedWidget):
     rotate_requested = pyqtSignal(list, int)
     delete_requested = pyqtSignal(list)
     extract_requested = pyqtSignal(list)
+    page_activated = pyqtSignal(int)
 
     def __init__(self) -> None:
         super().__init__()
 
-        self._placeholder = QLabel("No document open.\nFile ▸ Open… to load a PDF.")
+        self._placeholder = QLabel(
+            "No document open.\nFile ▸ Open… to load a PDF."
+        )
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._placeholder.setStyleSheet("color: palette(mid); font-size: 14px;")
 
@@ -112,6 +155,7 @@ class ThumbnailView(QStackedWidget):
         self._grid.rotate_requested.connect(self.rotate_requested)
         self._grid.delete_requested.connect(self.delete_requested)
         self._grid.extract_requested.connect(self.extract_requested)
+        self._grid.page_activated.connect(self.page_activated)
 
         self.addWidget(self._placeholder)
         self.addWidget(self._grid)

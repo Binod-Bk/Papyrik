@@ -145,6 +145,36 @@ def test_undo_disabled_at_base(app, window):
 
 # -- merge ---------------------------------------------------------------
 
+def test_drag_reorder_moves_page_to_end(app, window):
+    """The manual drop path: reorder_requested drives a real version op."""
+    window._open_path(_fixture("large_300p.pdf"))
+    first_text = PdfReader(str(window._current)).pages[0].extract_text().strip()
+
+    # Emulate what _Grid.dropEvent computes when page 0 is dropped at the end.
+    from papyrik.ui.thumbnail_view import compute_reorder
+
+    order = compute_reorder(300, [0], drop_row=300)
+    assert order[-1] == 0  # page 0 now last
+    window._on_reorder(order)
+    assert _wait(app, lambda: not window._busy)
+
+    last_text = PdfReader(str(window._current)).pages[299].extract_text().strip()
+    assert last_text == first_text
+
+
+def test_view_page_opens_and_closes(app, window):
+    window._open_path(_fixture("large_300p.pdf"))
+    from papyrik.ui.page_viewer import PageViewer
+
+    viewer = PageViewer(window._current, 0, 300, window)
+    assert not viewer._image.pixmap().isNull()
+    viewer._go(1)
+    assert viewer._index == 1
+    viewer._adjust_zoom(1)
+    assert viewer._zoom == 3
+    viewer.close()
+
+
 def test_merge_loads_result(app, window):
     window._open_path(_fixture("cjk.pdf"))  # prime, then replace via merge
     monkeypatch_files = [str(_fixture("cjk.pdf")), str(_fixture("large_300p.pdf"))]
