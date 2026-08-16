@@ -428,6 +428,26 @@ def test_watermark_via_dispatch(app, window, monkeypatch, tmp_path):
         assert "DRAFT" in doc[0].get_text()
 
 
+def test_metadata_edit_via_dispatch(app, window, monkeypatch):
+    from papyrik.core.operations import metadata as metadata_ops
+    from papyrik.ui.metadata_dialog import MetadataDialog
+
+    monkeypatch.setattr(MetadataDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(
+        MetadataDialog, "values",
+        lambda self: {**metadata_ops.read_metadata(window._current),
+                      "title": "Edited Title", "author": "Binod"},
+    )
+    window._open_path(_fixture("cjk.pdf"))
+    window._on_run_tool("Metadata")
+    assert _wait(app, lambda: not window._busy)
+    assert len(window._versions) == 2          # new version pushed
+    assert window._saved is False
+    back = metadata_ops.read_metadata(window._current)
+    assert back["title"] == "Edited Title"
+    assert back["author"] == "Binod"
+
+
 def test_merge_loads_result(app, window):
     window._open_path(_fixture("cjk.pdf"))  # prime, then replace via merge
     monkeypatch_files = [str(_fixture("cjk.pdf")), str(_fixture("large_300p.pdf"))]

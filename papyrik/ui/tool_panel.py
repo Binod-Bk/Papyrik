@@ -45,6 +45,7 @@ RUN_LABELS: dict[str, str] = {
     "Compress": "Compress…",
     "Watermark": "Add Watermark…",
     "Page Numbers": "Add Page Numbers…",
+    "Metadata": "View / Edit…",
 }
 
 

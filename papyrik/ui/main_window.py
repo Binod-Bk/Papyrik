@@ -41,9 +41,16 @@ from papyrik.core.document import (
     PdfEncryptedError,
     is_encrypted,
 )
-from papyrik.core.operations import convert, enhance, pages, security
+from papyrik.core.operations import (
+    convert,
+    enhance,
+    metadata as metadata_ops,
+    pages,
+    security,
+)
 from papyrik.ui.page_viewer import PageViewer
 from papyrik.ui.thumbnail_view import ThumbnailView
+from papyrik.ui.metadata_dialog import MetadataDialog
 from papyrik.ui.tool_panel import ToolPanel
 from papyrik.ui.watermark_dialog import WatermarkDialog
 from papyrik.workers import OperationWorker, ThumbnailWorker
@@ -421,6 +428,7 @@ class MainWindow(QMainWindow):
             "Compress": self._compress,
             "Watermark": self._watermark,
             "Page Numbers": self._page_numbers,
+            "Metadata": self._metadata,
         }
         handler = handlers.get(tool)
         if handler is not None:
@@ -628,6 +636,39 @@ class MainWindow(QMainWindow):
                 src, dst, start=start, position=position),
             self._current, out,
             busy="Adding page numbers…", done=f"Saved {Path(out).name}",
+        )
+
+    # -- metadata ---------------------------------------------------------
+
+    def _metadata(self) -> None:
+        if not self._need_document():
+            return
+        try:
+            current_values = metadata_ops.read_metadata(self._current)
+        except Exception as exc:  # noqa: BLE001
+            self._error("Metadata", str(exc))
+            return
+        dialog = MetadataDialog(current_values, self)
+        if not dialog.exec():
+            return
+        new_values = dialog.values()
+        if new_values == current_values:
+            self._status("Metadata unchanged")
+            return
+
+        out = self._next_path()
+        self._set_busy(True, "Saving metadata…")
+
+        def on_ok(result: object) -> None:
+            self._versions.append(Path(str(result)))
+            self._saved = False
+            self._set_busy(False)
+            self._status("Metadata updated")
+            self._refresh_actions()
+
+        self._launch(
+            lambda src, dst: metadata_ops.write_metadata(src, dst, new_values),
+            self._current, out, on_ok=on_ok,
         )
 
     # -- misc -------------------------------------------------------------
