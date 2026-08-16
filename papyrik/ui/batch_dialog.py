@@ -84,7 +84,7 @@ class BatchDialog(QDialog):
         host = QWidget()
         row = QHBoxLayout(host)
         row.setContentsMargins(0, 0, 0, 0)
-        label.setStyleSheet("color: palette(mid);")
+        label.setWordWrap(True)  # readable default text color; wrap long paths
         row.addWidget(label, 1)
         row.addWidget(button)
         return host
