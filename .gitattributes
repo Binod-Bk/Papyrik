@@ -1,0 +1,13 @@
+# Treat PDFs and images as binary - never apply line-ending conversion,
+# which would corrupt them.
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.docx  binary
+*.ico   binary
+
+# Normalize line endings for source; developers may be on Windows or Unix.
+*.py    text
+*.txt   text
+*.md    text

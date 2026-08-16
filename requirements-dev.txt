@@ -1,0 +1,4 @@
+# Papyrik - development/test dependencies (not shipped in the built app).
+-r requirements.txt
+
+pytest==9.1.1
