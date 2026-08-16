@@ -60,7 +60,6 @@ class PdfDocument:
     def __init__(self, path: str | Path, password: str | None = None) -> None:
         self.path = Path(path)
         self._doc: pymupdf.Document | None = None
-        self._dirty = False
         self._open(password)
 
     # -- lifecycle --------------------------------------------------------
@@ -117,18 +116,6 @@ class PdfDocument:
     @property
     def page_count(self) -> int:
         return self._require_open().page_count
-
-    # -- dirty tracking ---------------------------------------------------
-
-    @property
-    def is_dirty(self) -> bool:
-        return self._dirty
-
-    def mark_dirty(self) -> None:
-        self._dirty = True
-
-    def mark_clean(self) -> None:
-        self._dirty = False
 
     # -- saving -----------------------------------------------------------
 

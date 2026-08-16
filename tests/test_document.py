@@ -97,17 +97,6 @@ def test_encrypted_with_correct_password_opens():
         assert doc.page_count == 1
 
 
-# -- dirty tracking ------------------------------------------------------
-
-def test_dirty_flag_lifecycle():
-    with PdfDocument(_fixture("cjk.pdf")) as doc:
-        assert doc.is_dirty is False
-        doc.mark_dirty()
-        assert doc.is_dirty is True
-        doc.mark_clean()
-        assert doc.is_dirty is False
-
-
 # -- rendering -----------------------------------------------------------
 
 def test_render_png_returns_png_bytes():

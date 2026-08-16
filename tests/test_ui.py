@@ -45,6 +45,7 @@ def app():
 def window(app):
     win = MainWindow()
     yield win
+    win._saved = True  # avoid the unsaved-changes modal during teardown
     win.close()
 
 
@@ -98,6 +99,27 @@ def test_open_encrypted_cancel_leaves_no_document(app, window, monkeypatch):
     )
     window._open_path(_fixture("encrypted.pdf"))
     assert window._current is None
+
+
+def test_encrypted_edit_then_undo_regression(app, window, monkeypatch):
+    """Regression: after decrypting, a page op must not overwrite the base
+    version, so undo returns to the freshly decrypted document."""
+    monkeypatch.setattr(
+        QInputDialog, "getText",
+        staticmethod(lambda *a, **k: (PASSWORD, True)),
+    )
+    window._open_path(_fixture("encrypted.pdf"))
+    base = window._current
+    assert _page_count(base) == 1
+
+    window._on_rotate([0], 90)
+    assert _wait(app, lambda: not window._busy)
+    assert len(window._versions) == 2
+    assert window._current != base  # distinct file, base not clobbered
+
+    window.undo()
+    assert window._current == base
+    assert PdfReader(str(window._current)).pages[0].rotation % 360 == 0
 
 
 # -- version ops: delete / undo / rotate / reorder -----------------------
@@ -208,6 +230,42 @@ def test_view_page_opens_and_closes(app, window):
     viewer._adjust_zoom(1)
     assert viewer._zoom == 3
     viewer.close()
+
+
+def test_close_prompts_and_discards_when_unsaved(app, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+
+    win = MainWindow()
+    win._open_path(_fixture("cjk.pdf"))
+    win._saved = False
+    workdir = win._workdir
+    asked = {}
+
+    def fake_warning(*a, **k):
+        asked["yes"] = True
+        return QMessageBox.StandardButton.Discard
+
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(fake_warning))
+    win.close()
+    assert asked.get("yes")          # the user was prompted
+    assert not workdir.exists()      # cleanup ran -> the close proceeded
+
+
+def test_close_cancel_vetoes(app, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+
+    win = MainWindow()
+    win._open_path(_fixture("cjk.pdf"))
+    win._saved = False
+    monkeypatch.setattr(
+        QMessageBox, "warning",
+        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Cancel),
+    )
+    win.close()
+    assert win._workdir.exists()     # cleanup skipped -> close was vetoed
+
+    win._saved = True                # allow real teardown
+    win.close()
 
 
 def test_merge_loads_result(app, window):

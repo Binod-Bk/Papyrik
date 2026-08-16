@@ -85,6 +85,8 @@ class MainWindow(QMainWindow):
         self._versions: list[Path] = []
         self._counter = 0
         self._busy = False
+        self._saved = True  # False once there are edits not yet exported
+
         self._op_worker: OperationWorker | None = None
         self._thumb_worker: ThumbnailWorker | None = None
 
@@ -201,7 +203,10 @@ class MainWindow(QMainWindow):
                 return  # user cancelled or gave up
 
         self._versions = [working]
-        self._counter = 0
+        self._saved = True  # freshly opened; no unsaved edits yet
+        # NB: never reset self._counter here - _next_path() must stay monotonic
+        # within the per-session workdir, or a later op can overwrite the base
+        # version (breaks undo, notably after decrypting an encrypted file).
         self._load_current(f"Opened {path.name}")
 
     def _decrypt_to_workdir(self, path: Path) -> Path | None:
@@ -268,6 +273,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(result: object) -> None:
             self._versions.append(Path(str(result)))
+            self._saved = False
             self._set_busy(False)
             self._load_current("Done")
 
@@ -276,17 +282,20 @@ class MainWindow(QMainWindow):
     def _launch(self, fn, *args, on_ok) -> None:
         worker = OperationWorker(fn, *args)
 
-        def handle_ok(result: object) -> None:
-            worker.deleteLater()
-            on_ok(result)
-
         def handle_fail(message: str) -> None:
-            worker.deleteLater()
             self._set_busy(False)
             self._error("Operation failed", message)
 
-        worker.finished_ok.connect(handle_ok)
+        def cleanup() -> None:
+            # Runs after run() has fully exited, so deleting the QThread is safe
+            # (avoids "QThread: Destroyed while thread is still running").
+            if self._op_worker is worker:
+                self._op_worker = None
+            worker.deleteLater()
+
+        worker.finished_ok.connect(on_ok)
         worker.failed.connect(handle_fail)
+        worker.finished.connect(cleanup)
         self._op_worker = worker
         worker.start()
 
@@ -334,6 +343,8 @@ class MainWindow(QMainWindow):
     def undo(self) -> None:
         if len(self._versions) > 1 and not self._busy:
             self._versions.pop()
+            if len(self._versions) == 1:
+                self._saved = True  # back to the originally opened document
             self._load_current("Undone")
 
     def save_as(self) -> None:
@@ -349,6 +360,7 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             self._error("Save failed", str(exc))
             return
+        self._saved = True
         self._status(f"Saved {Path(out).name}")
 
     # -- merge / split ----------------------------------------------------
@@ -368,6 +380,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(result: object) -> None:
             self._versions = [Path(str(result))]
+            self._saved = False  # merged output exists only in the workdir
             self._set_busy(False)
             self._load_current("Merged")
 
@@ -407,6 +420,25 @@ class MainWindow(QMainWindow):
         self._status(message)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if self._current is not None and not self._saved:
+            choice = QMessageBox.warning(
+                self, "Unsaved changes",
+                "You have edits that haven't been saved to a PDF.\n"
+                "Save before closing?",
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Save,
+            )
+            if choice == QMessageBox.StandardButton.Cancel:
+                event.ignore()
+                return
+            if choice == QMessageBox.StandardButton.Save:
+                self.save_as()
+                if not self._saved:  # user backed out of the save dialog
+                    event.ignore()
+                    return
+
         self._stop_thumbnails()
         if self._op_worker is not None:
             self._op_worker.wait()
