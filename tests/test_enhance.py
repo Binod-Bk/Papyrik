@@ -46,6 +46,54 @@ def test_compress_bad_preset(tmp_path):
         enhance.compress(_fixture("cjk.pdf"), tmp_path / "x.pdf", preset="tiny")
 
 
+def _has_transparency(pdf_path) -> bool:
+    """True if any image in the PDF carries alpha (a soft mask)."""
+    with pymupdf.open(str(pdf_path)) as doc:
+        for page in doc:
+            for info in page.get_images(full=True):
+                if info[1] != 0:  # smask xref
+                    return True
+    return False
+
+
+def test_compress_preserves_transparency(tmp_path):
+    from PIL import Image
+
+    # A logo: transparent background with an opaque red square in the middle.
+    logo = Image.new("RGBA", (400, 400), (0, 0, 0, 0))
+    for x in range(150, 250):
+        for y in range(150, 250):
+            logo.putpixel((x, y), (255, 0, 0, 255))
+    logo_path = tmp_path / "logo.png"
+    logo.save(logo_path)
+
+    doc = pymupdf.open()
+    page = doc.new_page(width=400, height=400)
+    page.insert_image(page.rect, filename=str(logo_path))
+    src = tmp_path / "logo.pdf"
+    doc.save(str(src))
+    doc.close()
+    assert _has_transparency(src)  # sanity: the embedded image has alpha
+
+    out = enhance.compress(src, tmp_path / "c.pdf", preset="low")
+    # The transparent image must survive - not be flattened to an opaque JPEG.
+    assert _has_transparency(out)
+    # And the previously transparent corner must not have become black.
+    with pymupdf.open(str(out)) as d:
+        corner = d[0].get_pixmap().pixel(4, 4)
+    assert corner != (0, 0, 0)
+
+
+def test_compress_presets_differ_meaningfully(tmp_path):
+    src = _fixture("scanned.pdf")
+    sizes = {
+        p: enhance.compress(src, tmp_path / f"{p}.pdf", preset=p).stat().st_size
+        for p in ("high", "balanced", "low")
+    }
+    # Presets must actually change the output size, not just decorate a dropdown.
+    assert sizes["low"] < sizes["balanced"] < sizes["high"]
+
+
 def test_compress_encrypted_raises(tmp_path):
     with pytest.raises(ValueError):
         enhance.compress(_fixture("encrypted.pdf"), tmp_path / "x.pdf")

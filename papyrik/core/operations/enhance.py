@@ -13,10 +13,12 @@ from pathlib import Path
 import pymupdf
 
 # preset -> (jpeg quality, max pixel dimension before downscaling)
+# Caps are deliberately below common scan/photo sizes so downscaling actually
+# fires and the presets differ meaningfully, not just by JPEG quality.
 _COMPRESS_PRESETS: dict[str, tuple[int, int]] = {
-    "high": (85, 4000),      # highest quality, least shrink
-    "balanced": (60, 2000),
-    "low": (40, 1200),       # smallest file, most loss
+    "high": (80, 2000),      # highest quality, least shrink
+    "balanced": (55, 1200),
+    "low": (35, 800),        # smallest file, most loss
 }
 
 _POSITIONS = {
@@ -86,10 +88,16 @@ def _anchor(rect: pymupdf.Rect, position: str, margin: float = 40.0) -> pymupdf.
 
 def compress(input_pdf: str | Path, output: str | Path,
              preset: str = "balanced") -> Path:
-    """Shrink `input_pdf` by re-encoding images and cleaning the file.
+    """Shrink `input_pdf` by re-encoding opaque images and cleaning the file.
 
-    `preset` is one of "high", "balanced", "low" (quality high -> low).
+    `preset` is one of "high", "balanced", "low" (quality high -> low). Images
+    with transparency (an alpha channel or a soft mask) are left untouched so a
+    logo/signature stamp never gets a black box; only opaque images are
+    re-encoded to JPEG. Text-only PDFs have no images to re-encode, so all
+    presets produce the same (already small) output.
     """
+    from PIL import Image
+
     if preset not in _COMPRESS_PRESETS:
         raise ValueError("preset must be one of: high, balanced, low.")
     quality, max_dim = _COMPRESS_PRESETS[preset]
@@ -99,18 +107,25 @@ def compress(input_pdf: str | Path, output: str | Path,
         seen: set[int] = set()
         for page in doc:
             for info in page.get_images(full=True):
-                xref = info[0]
+                xref, smask = info[0], info[1]
                 if xref in seen:
                     continue
                 seen.add(xref)
+                if smask:  # soft-masked transparency -> leave it alone
+                    continue
                 try:
-                    pix = pymupdf.Pixmap(doc, xref)
-                    if pix.alpha or (pix.n - pix.alpha) >= 4:  # RGBA/CMYK -> RGB
-                        pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
-                    while max(pix.width, pix.height) > max_dim:
-                        pix.shrink(1)  # halve dimensions
-                    data = pix.tobytes(output="jpg", jpg_quality=quality)
-                    page.replace_image(xref, stream=data)
+                    extracted = doc.extract_image(xref)
+                    img = Image.open(io.BytesIO(extracted["image"]))
+                    if img.mode in ("RGBA", "LA", "PA") or (
+                        img.mode == "P" and "transparency" in img.info
+                    ):
+                        continue  # has its own alpha -> preserve, skip
+                    if max(img.size) > max_dim:
+                        img.thumbnail((max_dim, max_dim))  # precise downscale
+                    img = img.convert("RGB")
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=quality)
+                    page.replace_image(xref, stream=buf.getvalue())
                 except Exception:
                     continue  # corrupt/odd images are normal, skip them
         return _save(doc, output, garbage=4, deflate=True, clean=True)

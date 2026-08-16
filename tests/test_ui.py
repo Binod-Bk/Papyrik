@@ -85,6 +85,8 @@ def test_save_overwrites_source_file(app, window, tmp_path):
     assert window.save() is True                # overwrites src, no dialog
     assert window._saved is True
     assert PdfReader(str(src)).pages[0].rotation % 360 == 90
+    # Atomic save leaves no temp file behind.
+    assert not list(tmp_path.glob("*.papyrik-tmp"))
 
     # Undo baseline is intact despite the overwrite.
     window.undo()

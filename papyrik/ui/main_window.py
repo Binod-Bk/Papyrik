@@ -14,6 +14,7 @@ decrypted into a working copy so pure operations never see a password.
 
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -372,6 +373,19 @@ class MainWindow(QMainWindow):
                 self._saved = True  # back to the originally opened document
             self._load_current("Undone")
 
+    @staticmethod
+    def _atomic_save(src: Path, dst: Path) -> None:
+        """Copy `src` over `dst` without risking a half-written `dst`.
+
+        Write to a temp file in the same directory, then os.replace() - atomic
+        on Windows and POSIX - so a crash mid-save can never truncate the user's
+        existing file.
+        """
+        dst = Path(dst)
+        tmp = dst.with_name(dst.name + ".papyrik-tmp")
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, dst)
+
     def save(self) -> bool:
         """Overwrite the file this document was opened from / last saved to.
 
@@ -383,7 +397,7 @@ class MainWindow(QMainWindow):
         if self._source_path is None:
             return self.save_as()
         try:
-            shutil.copyfile(self._current, self._source_path)
+            self._atomic_save(self._current, self._source_path)
         except OSError as exc:
             self._error("Save failed", str(exc))
             return False
@@ -400,7 +414,7 @@ class MainWindow(QMainWindow):
         if not out:
             return False
         try:
-            shutil.copyfile(self._current, out)
+            self._atomic_save(self._current, Path(out))
         except OSError as exc:
             self._error("Save failed", str(exc))
             return False
