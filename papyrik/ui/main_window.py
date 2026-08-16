@@ -46,6 +46,7 @@ from papyrik.core.operations import (
     annotate,
     convert,
     enhance,
+    forms,
     metadata as metadata_ops,
     pages,
     security,
@@ -53,6 +54,7 @@ from papyrik.core.operations import (
 from papyrik.ui.page_viewer import PageViewer
 from papyrik.ui.thumbnail_view import ThumbnailView
 from papyrik.ui.annotation_view import AnnotationView
+from papyrik.ui.form_dialog import FormDialog
 from papyrik.ui.metadata_dialog import MetadataDialog
 from papyrik.ui.tool_panel import ToolPanel
 from papyrik.ui.watermark_dialog import WatermarkDialog
@@ -486,6 +488,7 @@ class MainWindow(QMainWindow):
             "Highlight": lambda: self._annotate("highlight"),
             "Sticky Note": lambda: self._annotate("note"),
             "Draw": lambda: self._annotate("draw"),
+            "Fill Form": self._fill_form,
         }
         handler = handlers.get(tool)
         if handler is not None:
@@ -700,6 +703,32 @@ class MainWindow(QMainWindow):
                 src, dst, start=start, position=position),
             busy="Adding page numbers…",
             done="Page numbers added (use Save to keep changes)",
+        )
+
+    # -- forms ------------------------------------------------------------
+
+    def _fill_form(self) -> None:
+        if not self._need_document():
+            return
+        try:
+            fields = forms.read_fields(self._current)
+        except Exception as exc:  # noqa: BLE001
+            self._error("Fill Form", str(exc))
+            return
+        if not fields:
+            QMessageBox.information(
+                self, "Fill Form",
+                "This PDF has no fillable form fields.")
+            return
+        dialog = FormDialog(fields, self)
+        if not dialog.exec():
+            return
+        values = dialog.values()
+        # NB: fill_fields signature is (input_pdf, values, output) - output last.
+        self._apply_edit(
+            lambda src, dst: forms.fill_fields(src, values, dst),
+            busy="Filling form…",
+            done="Form filled (use Save to keep changes)",
         )
 
     # -- annotate ---------------------------------------------------------

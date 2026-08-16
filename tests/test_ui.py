@@ -41,6 +41,17 @@ def app():
     return QApplication.instance() or QApplication(sys.argv)
 
 
+@pytest.fixture(autouse=True)
+def _no_blocking_error_modal(monkeypatch):
+    # A modal QMessageBox.critical blocks forever headless; keep an unexpected
+    # error surfacing as a failed assertion, never a hung suite.
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch.setattr(
+        QMessageBox, "critical",
+        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Ok),
+    )
+
+
 @pytest.fixture
 def window(app):
     win = MainWindow()
@@ -556,6 +567,33 @@ def test_annotation_note_click_finds_existing(app, window):
     # A click far away resolves to no existing note (would create a new one).
     assert view._canvas._note_at(QPointF(400, 400)) is None
     view.close()
+
+
+def test_fill_form_via_dispatch(app, window, monkeypatch):
+    from papyrik.core.operations import forms
+    from papyrik.ui.form_dialog import FormDialog
+
+    monkeypatch.setattr(FormDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(FormDialog, "values",
+                        lambda self: {"full_name": "Binod B K"})
+    window._open_path(_fixture("form.pdf"))
+    window._on_run_tool("Fill Form")
+    assert _wait(app, lambda: not window._busy)
+    assert len(window._versions) == 2
+    filled = {f["name"]: f["value"] for f in forms.read_fields(window._current)}
+    assert filled["full_name"] == "Binod B K"
+
+
+def test_fill_form_no_fields_shows_info(app, window, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+
+    shown = {}
+    monkeypatch.setattr(QMessageBox, "information",
+                        staticmethod(lambda *a, **k: shown.setdefault("i", True)))
+    window._open_path(_fixture("cjk.pdf"))  # no form fields
+    window._on_run_tool("Fill Form")
+    assert shown.get("i")
+    assert len(window._versions) == 1  # nothing applied
 
 
 def test_metadata_edit_via_dispatch(app, window, monkeypatch):

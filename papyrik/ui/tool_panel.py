@@ -49,6 +49,7 @@ RUN_LABELS: dict[str, str] = {
     "Highlight": "Highlight a page…",
     "Sticky Note": "Add notes to a page…",
     "Draw": "Draw on a page…",
+    "Fill Form": "Fill Form…",
 }
 
 
