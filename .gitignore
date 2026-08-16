@@ -13,6 +13,8 @@ env/
 build/
 dist/
 *.spec
+# keep our maintained build spec
+!papyrik.spec
 
 # Test artifacts / scratch output
 *.tmp
