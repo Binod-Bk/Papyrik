@@ -62,6 +62,16 @@ class WatermarkDialog(QDialog):
         opacity_row.addWidget(self._opacity, 1)
         opacity_row.addWidget(self._opacity_label)
 
+        self._fontsize = QSpinBox()
+        self._fontsize.setRange(8, 300)
+        self._fontsize.setValue(48)
+        self._fontsize.setSuffix(" pt")
+
+        self._img_scale = QSpinBox()
+        self._img_scale.setRange(5, 100)
+        self._img_scale.setValue(40)
+        self._img_scale.setSuffix(" % of page width")
+
         self._rotation = QSpinBox()
         self._rotation.setRange(-180, 180)
         self._rotation.setValue(45)
@@ -73,7 +83,9 @@ class WatermarkDialog(QDialog):
         form = QFormLayout()
         form.addRow(mode)
         form.addRow("Text:", self._text)
+        form.addRow("Font size:", self._fontsize)
         form.addRow("Image:", self._wrap(image_row))
+        form.addRow("Image size:", self._img_scale)
         form.addRow("Opacity:", self._wrap(opacity_row))
         form.addRow("Rotation:", self._rotation)
         form.addRow("Position:", self._position)
@@ -98,6 +110,8 @@ class WatermarkDialog(QDialog):
     def _sync_enabled(self) -> None:
         text_mode = self._text_radio.isChecked()
         self._text.setEnabled(text_mode)
+        self._fontsize.setEnabled(text_mode)
+        self._img_scale.setEnabled(not text_mode)
 
     def _choose_image(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -127,5 +141,7 @@ class WatermarkDialog(QDialog):
             "position": self._position.currentText(),
         }
         if self._text_radio.isChecked():
-            return {"text": self._text.text(), **common}
-        return {"image": self._image_path, **common}
+            return {"text": self._text.text(),
+                    "fontsize": self._fontsize.value(), **common}
+        return {"image": self._image_path,
+                "scale": self._img_scale.value() / 100.0, **common}

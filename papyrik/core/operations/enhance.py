@@ -123,27 +123,35 @@ def compress(input_pdf: str | Path, output: str | Path,
 def watermark(input_pdf: str | Path, output: str | Path, *,
               text: str | None = None, image: str | Path | None = None,
               opacity: float = 0.3, rotation: int = 45,
-              position: str = "center") -> Path:
-    """Stamp a text OR image watermark on every page."""
+              position: str = "center", fontsize: int = 48,
+              scale: float = 0.4) -> Path:
+    """Stamp a text OR image watermark on every page.
+
+    `fontsize` sizes a text watermark (points); `scale` sizes an image
+    watermark as a fraction of the page width (0-1).
+    """
     if bool(text) == bool(image):
         raise ValueError("Provide exactly one of text or image.")
     if not 0.0 <= opacity <= 1.0:
         raise ValueError("opacity must be between 0 and 1.")
+    if fontsize <= 0:
+        raise ValueError("fontsize must be positive.")
+    if not 0.0 < scale <= 1.0:
+        raise ValueError("scale must be between 0 and 1.")
     position = _normalize_position(position)
 
     doc = _open_pdf(input_pdf)
     try:
         if text:
-            _watermark_text(doc, text, opacity, rotation, position)
+            _watermark_text(doc, text, opacity, rotation, position, fontsize)
         else:
-            _watermark_image(doc, image, opacity, rotation, position)
+            _watermark_image(doc, image, opacity, rotation, position, scale)
         return _save(doc, output, garbage=3, deflate=True)
     finally:
         doc.close()
 
 
-def _watermark_text(doc, text, opacity, rotation, position) -> None:
-    fontsize = 48
+def _watermark_text(doc, text, opacity, rotation, position, fontsize) -> None:
     length = pymupdf.get_text_length(text, fontsize=fontsize)
     for page in doc:
         anchor = _anchor(page.rect, position)
@@ -155,7 +163,7 @@ def _watermark_text(doc, text, opacity, rotation, position) -> None:
         writer.write_text(page, morph=(anchor, matrix))
 
 
-def _watermark_image(doc, image, opacity, rotation, position) -> None:
+def _watermark_image(doc, image, opacity, rotation, position, scale) -> None:
     from PIL import Image
 
     img = Image.open(str(image)).convert("RGBA")
@@ -171,7 +179,7 @@ def _watermark_image(doc, image, opacity, rotation, position) -> None:
 
     for page in doc:
         rect = page.rect
-        target_w = rect.width * 0.4
+        target_w = rect.width * scale
         target_h = target_w * ih / iw
         anchor = _anchor(rect, position)
         box = pymupdf.Rect(anchor.x - target_w / 2, anchor.y - target_h / 2,

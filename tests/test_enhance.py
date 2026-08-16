@@ -73,6 +73,33 @@ def test_watermark_image_runs(tmp_path):
     assert _page_count(out) == 300
 
 
+def test_watermark_text_custom_fontsize(tmp_path):
+    out = enhance.watermark(_fixture("cjk.pdf"), tmp_path / "w.pdf",
+                            text="BIG", fontsize=120, position="center")
+    with pymupdf.open(str(out)) as doc:
+        assert "BIG" in doc[0].get_text()
+
+
+def test_watermark_image_custom_scale(tmp_path):
+    from papyrik.core.operations import convert
+    png = convert.pdf_to_images(_fixture("cjk.pdf"), tmp_path, fmt="png")[0]
+    out = enhance.watermark(_fixture("cjk.pdf"), tmp_path / "wi.pdf",
+                            image=png, scale=0.75, position="center")
+    assert _page_count(out) == 1
+
+
+def test_watermark_bad_fontsize(tmp_path):
+    with pytest.raises(ValueError):
+        enhance.watermark(_fixture("cjk.pdf"), tmp_path / "x.pdf",
+                          text="a", fontsize=0)
+
+
+def test_watermark_bad_scale(tmp_path):
+    with pytest.raises(ValueError):
+        enhance.watermark(_fixture("cjk.pdf"), tmp_path / "x.pdf",
+                          text="a", scale=1.5)
+
+
 def test_watermark_requires_exactly_one_source(tmp_path):
     with pytest.raises(ValueError):
         enhance.watermark(_fixture("cjk.pdf"), tmp_path / "x.pdf")  # neither
