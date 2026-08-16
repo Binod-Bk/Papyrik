@@ -521,6 +521,21 @@ def test_annotation_view_returns_pdf_coords_and_undo(app, window):
     view.close()
 
 
+def test_annotation_note_click_finds_existing(app, window):
+    from PyQt6.QtCore import QPointF
+    from papyrik.ui.annotation_view import AnnotationView
+
+    window._open_path(_fixture("cjk.pdf"))
+    view = AnnotationView(window._current, 0, "note", window)
+    view.resize(600, 700)
+    view._canvas.notes.append((QPointF(100, 120), "original"))
+    # A click very near the note resolves to that note (edit), not a new one.
+    assert view._canvas._note_at(QPointF(101, 121)) == 0
+    # A click far away resolves to no existing note (would create a new one).
+    assert view._canvas._note_at(QPointF(400, 400)) is None
+    view.close()
+
+
 def test_metadata_edit_via_dispatch(app, window, monkeypatch):
     from papyrik.core.operations import metadata as metadata_ops
     from papyrik.ui.metadata_dialog import MetadataDialog

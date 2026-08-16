@@ -23,7 +23,6 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QDialog,
-    QDialogButtonBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -142,12 +141,30 @@ class _Canvas(QWidget):
             self._box_start = pos
             self._box_cur = pos
         elif self.tool == "note":
+            hit = self._note_at(pos)
+            if hit is not None:  # click an existing note -> view/edit its text
+                text, ok = QInputDialog.getMultiLineText(
+                    self, "Sticky note", "Note text:", self.notes[hit][1])
+                if ok and text.strip():
+                    self.notes[hit] = (self.notes[hit][0], text)
+                    self.update()
+                return
             text, ok = QInputDialog.getMultiLineText(
                 self, "Sticky note", "Note text:")
             if ok and text.strip():
                 self.notes.append((pos, text))
                 self._order.append("note")
                 self.update()
+
+    def _note_at(self, pdf_point: QPointF) -> int | None:
+        """Index of an existing note within a few pixels of `pdf_point`."""
+        scale = self._disp()[0]
+        tol = 9 / scale if scale else 9
+        for i, (point, _text) in enumerate(self.notes):
+            if (abs(point.x() - pdf_point.x()) <= tol
+                    and abs(point.y() - pdf_point.y()) <= tol):
+                return i
+        return None
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt override
         pos = self._to_pdf(event.position().x(), event.position().y())
@@ -227,24 +244,27 @@ class AnnotationView(QDialog):
         clear.clicked.connect(self._canvas.clear)
         toolbar.addWidget(undo)
         toolbar.addWidget(clear)
+        toolbar.addSpacing(16)
+        # Primary actions live in the always-visible top bar so they're never
+        # pushed off-screen on shorter displays.
+        apply_btn = QPushButton("Apply && Save")
+        apply_btn.setDefault(True)
+        apply_btn.setStyleSheet("font-weight: 600; padding: 4px 14px;")
+        apply_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        toolbar.addWidget(apply_btn)
+        toolbar.addWidget(cancel_btn)
 
-        hint = QLabel("Highlight / Draw: drag on the page.   Sticky Note: click.")
+        hint = QLabel("Highlight / Draw: drag on the page.   Sticky Note: click "
+                      "an empty spot to add, or an existing note to edit.")
         hint.setStyleSheet("color: palette(mid);")
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Apply
-            | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(
-            self.accept)
-        buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
         layout.addLayout(toolbar)
         layout.addWidget(self._canvas, 1)
         layout.addWidget(hint)
-        layout.addWidget(buttons)
-        self.resize(900, 820)
+        self.resize(940, 720)
 
         QShortcut(QKeySequence.StandardKey.Undo, self, self._canvas.undo)
 
