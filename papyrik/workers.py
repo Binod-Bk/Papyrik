@@ -1,43 +1,77 @@
 """QThread wrappers. No long PDF operation runs on the UI thread.
 
-`OperationWorker` runs any pure `core` function on a background thread and
-emits progress / finished / failed signals. The UI connects to these; it never
-calls a `core` operation directly.
+- `OperationWorker` runs any pure `core` function off-thread and reports the
+  result (usually an output path) or a human-readable error.
+- `ThumbnailWorker` renders a document's pages to PNG bytes one at a time and
+  streams them back, so opening a 300-page file never freezes the window.
+
+The UI connects to these signals; it never calls a `core` operation directly.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal
+
+from papyrik.core.document import PdfDocument
 
 
 class OperationWorker(QThread):
-    """Runs `fn(*args, **kwargs)` off the UI thread.
+    """Runs `fn(*args, **kwargs)` off the UI thread."""
 
-    A callable passed as the `progress` keyword (if the operation supports it)
-    should accept an int 0-100. Result and errors come back via signals.
-    """
-
-    progress = pyqtSignal(int)
     finished_ok = pyqtSignal(object)  # result (usually an output path)
     failed = pyqtSignal(str)          # human-readable error message
 
-    def __init__(
-        self,
-        fn: Callable[..., Any],
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         super().__init__()
         self._fn = fn
         self._args = args
         self._kwargs = kwargs
 
-    def run(self) -> None:  # noqa: D401 - QThread entry point
+    def run(self) -> None:  # QThread entry point
         try:
             result = self._fn(*self._args, **self._kwargs)
         except Exception as exc:  # corrupt PDFs are normal, not exceptional
             self.failed.emit(str(exc))
             return
         self.finished_ok.emit(result)
+
+
+class ThumbnailWorker(QThread):
+    """Renders each page of `path` to PNG bytes and emits them in order.
+
+    Opens its own PdfDocument handle so the render loop never shares a PyMuPDF
+    document with the UI thread. Honors interruption so a superseded load stops
+    promptly.
+    """
+
+    thumbnail_ready = pyqtSignal(int, bytes)  # page index, PNG bytes
+    done = pyqtSignal()
+
+    def __init__(self, path: str | Path, password: str | None = None,
+                 dpi: int = 30) -> None:
+        super().__init__()
+        self._path = path
+        self._password = password
+        self._dpi = dpi
+
+    def run(self) -> None:
+        try:
+            doc = PdfDocument(self._path, self._password)
+        except Exception:
+            self.done.emit()
+            return
+        try:
+            for i in range(doc.page_count):
+                if self.isInterruptionRequested():
+                    break
+                try:
+                    data = doc.render_png(i, dpi=self._dpi)
+                except Exception:
+                    continue
+                self.thumbnail_ready.emit(i, data)
+        finally:
+            doc.close()
+        self.done.emit()

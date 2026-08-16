@@ -130,6 +130,21 @@ class PdfDocument:
     def mark_clean(self) -> None:
         self._dirty = False
 
+    # -- saving -----------------------------------------------------------
+
+    def save_as(self, path: str | Path) -> Path:
+        """Write a plaintext (decrypted) copy of the open document to `path`.
+
+        Used when opening an encrypted file: the app works on this decrypted
+        copy so pure page operations never have to handle a password. The
+        original file on disk is never touched.
+        """
+        doc = self._require_open()
+        out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        doc.save(str(out), encryption=pymupdf.PDF_ENCRYPT_NONE)
+        return out
+
     # -- rendering --------------------------------------------------------
 
     def render_png(self, index: int, dpi: int = 72) -> bytes:
