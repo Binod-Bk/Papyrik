@@ -72,6 +72,7 @@ class ToolPanel(QWidget):
         self._hint.setStyleSheet("color: palette(mid);")
 
         self._run = QPushButton()
+        self._run.setObjectName("primary")
         self._run.setVisible(False)
         self._run.clicked.connect(self._on_run)
 

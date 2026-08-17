@@ -20,7 +20,7 @@ import tempfile
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import (
     QFileDialog,
     QInputDialog,
@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 )
 
 from papyrik import APP_NAME, __version__
+from papyrik.resources import resource_path
 from papyrik.core.document import (
     PdfCorruptError,
     PdfDocument,
@@ -77,13 +78,13 @@ class Sidebar(QListWidget):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setMaximumWidth(200)
+        self.setMaximumWidth(210)
         for group, tools in TOOLS:
             header = QListWidgetItem(group.upper())
             header.setFlags(Qt.ItemFlag.NoItemFlags)
             self.addItem(header)
             for tool in tools:
-                item = QListWidgetItem("   " + tool)
+                item = QListWidgetItem(tool)
                 item.setData(Qt.ItemDataRole.UserRole, tool)
                 self.addItem(item)
 
@@ -93,6 +94,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         self.resize(1200, 800)
+        _icon = resource_path("papyrik.ico")
+        if _icon.exists():
+            self.setWindowIcon(QIcon(str(_icon)))
 
         # -- document state --
         self._workdir = Path(tempfile.mkdtemp(prefix="papyrik_"))

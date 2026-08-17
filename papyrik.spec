@@ -5,6 +5,8 @@
 # The heavy PDF/imaging deps ship data files and dynamically imported
 # submodules that PyInstaller can miss, so we collect them explicitly.
 
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 datas = []
@@ -19,6 +21,11 @@ for pkg in ("pymupdf", "fitz", "pdf2docx"):
 
 # cryptography (pypdf AES) pulls native backends in dynamically.
 hiddenimports += collect_submodules("cryptography")
+
+# Bundle logo/icon assets (loaded at runtime via papyrik.resources).
+datas += [(str(p), "assets")
+          for p in Path("assets").glob("*.png")]
+datas += [("assets/papyrik.ico", "assets")]
 
 a = Analysis(
     ["run_papyrik.py"],
@@ -42,6 +49,7 @@ exe = EXE(
     a.datas,
     [],
     name="Papyrik",
+    icon="assets/papyrik.ico",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

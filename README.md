@@ -1,4 +1,9 @@
-# Papyrik
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/stacked-dark.png">
+    <img src="assets/stacked-light.png" alt="Papyrik" width="220">
+  </picture>
+</p>
 
 **An offline desktop PDF toolkit.** Everything iLovePDF / Smallpdf do — merge, split, convert, compress, watermark, encrypt, annotate, fill forms — but **100% local**: no upload, no file-size cap, no daily limit, no account. Your documents never leave your machine.
 

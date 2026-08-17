@@ -1,0 +1,27 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6D5AE6"/>
+      <stop offset="1" stop-color="#8B6FF0"/>
+    </linearGradient>
+    <linearGradient id="pageLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFDF7"/>
+      <stop offset="1" stop-color="#FBF5E8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bgLight)"/>
+
+  <!-- page with folded top-right corner -->
+  <path d="M150 128 a16 16 0 0 1 16 -16 h150 l46 46 v210
+           a16 16 0 0 1 -16 16 h-180 a16 16 0 0 1 -16 -16 Z"
+        fill="url(#pageLight)"/>
+  <path d="M316 112 l46 46 h-46 Z" fill="#E4D8BE"/>
+
+  <!-- text lines, with one highlighter stroke -->
+  <rect x="178" y="182" width="150" height="12" rx="6" fill="#C3C9EE"/>
+  <rect x="178" y="214" width="150" height="12" rx="6" fill="#C3C9EE"/>
+  <rect x="172" y="244" width="140" height="22" rx="7" fill="#FFC24B"/>
+  <rect x="178" y="290" width="150" height="12" rx="6" fill="#C3C9EE"/>
+  <rect x="178" y="322" width="112" height="12" rx="6" fill="#C3C9EE"/>
+</svg>

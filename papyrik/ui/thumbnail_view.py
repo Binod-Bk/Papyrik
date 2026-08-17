@@ -18,7 +18,11 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
+
+from papyrik.resources import resource_path
 
 _PAGE_ROLE = Qt.ItemDataRole.UserRole
 _ICON = QSize(200, 283)  # ~A4 aspect ratio
@@ -48,6 +52,7 @@ class _Grid(QListWidget):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("pageGrid")
         self.setViewMode(QListView.ViewMode.IconMode)
         self.setResizeMode(QListView.ResizeMode.Adjust)
         self.setMovement(QListView.Movement.Snap)
@@ -216,11 +221,7 @@ class ThumbnailView(QStackedWidget):
     def __init__(self) -> None:
         super().__init__()
 
-        self._placeholder = QLabel(
-            "No document open.\nFile ▸ Open… to load a PDF."
-        )
-        self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._placeholder.setStyleSheet("color: palette(mid); font-size: 14px;")
+        self._placeholder = self._build_placeholder()
 
         self._grid = _Grid()
         self._grid.reorder_requested.connect(self.reorder_requested)
@@ -232,6 +233,31 @@ class ThumbnailView(QStackedWidget):
         self.addWidget(self._placeholder)
         self.addWidget(self._grid)
         self.setCurrentWidget(self._placeholder)
+
+    @staticmethod
+    def _build_placeholder() -> QWidget:
+        host = QWidget()
+        layout = QVBoxLayout(host)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(18)
+
+        logo = QLabel(alignment=Qt.AlignmentFlag.AlignCenter)
+        logo_path = resource_path("stacked-dark.png")
+        if logo_path.exists():
+            pixmap = QPixmap(str(logo_path)).scaledToWidth(
+                220, Qt.TransformationMode.SmoothTransformation)
+            logo.setPixmap(pixmap)
+        else:
+            logo.setText("Papyrik")
+            logo.setStyleSheet("font-size: 28px; font-weight: 700;")
+
+        caption = QLabel("Open a PDF to begin — File ▸ Open…  (Ctrl+O)",
+                         alignment=Qt.AlignmentFlag.AlignCenter)
+        caption.setStyleSheet("color: #948FAE; font-size: 14px;")
+
+        layout.addWidget(logo)
+        layout.addWidget(caption)
+        return host
 
     # -- population -------------------------------------------------------
 
