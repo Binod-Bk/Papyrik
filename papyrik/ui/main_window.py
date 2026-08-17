@@ -173,6 +173,17 @@ class MainWindow(QMainWindow):
         self.act_undo.setShortcut(QKeySequence.StandardKey.Undo)
         self.act_undo.triggered.connect(self.undo)
 
+        view_menu = self.menuBar().addMenu("&View")
+        act_zoom_in = view_menu.addAction("Zoom &In")
+        act_zoom_in.setShortcuts([QKeySequence.StandardKey.ZoomIn, "Ctrl+="])
+        act_zoom_in.triggered.connect(self.preview.zoom_in)
+        act_zoom_out = view_menu.addAction("Zoom &Out")
+        act_zoom_out.setShortcut(QKeySequence.StandardKey.ZoomOut)
+        act_zoom_out.triggered.connect(self.preview.zoom_out)
+        act_zoom_reset = view_menu.addAction("&Actual Size")
+        act_zoom_reset.setShortcut("Ctrl+0")
+        act_zoom_reset.triggered.connect(self.preview.reset_zoom)
+
         page_menu = self.menuBar().addMenu("&Pages")
         self.act_split = page_menu.addAction("&Split every N pages…")
         self.act_split.triggered.connect(self.split_every_n)

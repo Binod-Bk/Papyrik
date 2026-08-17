@@ -81,7 +81,7 @@ class ThumbnailWorker(QThread):
     done = pyqtSignal()
 
     def __init__(self, path: str | Path, password: str | None = None,
-                 dpi: int = 30) -> None:
+                 dpi: int = 42) -> None:  # crisp up to the larger zoom levels
         super().__init__()
         self._path = path
         self._password = password

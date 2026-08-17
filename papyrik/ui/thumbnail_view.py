@@ -25,7 +25,9 @@ from PyQt6.QtWidgets import (
 from papyrik.resources import resource_path
 
 _PAGE_ROLE = Qt.ItemDataRole.UserRole
-_ICON = QSize(200, 283)  # ~A4 aspect ratio
+_ASPECT = 1.414                       # ~A4 (height / width)
+_ZOOM_WIDTHS = [100, 130, 170, 210, 270, 340]  # icon widths per zoom step
+_DEFAULT_ZOOM = 3                     # -> 210 px
 
 
 def compute_reorder(count: int, src_rows: list[int], drop_row: int) -> list[int]:
@@ -59,9 +61,9 @@ class _Grid(QListWidget):
         self.setFlow(QListView.Flow.LeftToRight)
         self.setWrapping(True)
         self.setSpacing(14)
-        self.setIconSize(_ICON)
-        self.setGridSize(QSize(_ICON.width() + 30, _ICON.height() + 40))
         self.setUniformItemSizes(True)
+        self._zoom = _DEFAULT_ZOOM
+        self._apply_zoom()
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
@@ -75,6 +77,44 @@ class _Grid(QListWidget):
         self.itemDoubleClicked.connect(
             lambda item: self.page_activated.emit(item.data(_PAGE_ROLE))
         )
+
+    # -- zoom -------------------------------------------------------------
+
+    def _apply_zoom(self) -> None:
+        width = _ZOOM_WIDTHS[self._zoom]
+        height = round(width * _ASPECT)
+        self.setIconSize(QSize(width, height))
+        self.setGridSize(QSize(width + 28, height + 40))
+        for row in range(self.count()):
+            self.item(row).setSizeHint(QSize(width + 20, height + 30))
+
+    def item_size_hint(self) -> QSize:
+        width = _ZOOM_WIDTHS[self._zoom]
+        return QSize(width + 20, round(width * _ASPECT) + 30)
+
+    def set_zoom(self, index: int) -> bool:
+        index = max(0, min(len(_ZOOM_WIDTHS) - 1, index))
+        if index == self._zoom:
+            return False
+        self._zoom = index
+        self._apply_zoom()
+        return True
+
+    def zoom_in(self) -> bool:
+        return self.set_zoom(self._zoom + 1)
+
+    def zoom_out(self) -> bool:
+        return self.set_zoom(self._zoom - 1)
+
+    def reset_zoom(self) -> bool:
+        return self.set_zoom(_DEFAULT_ZOOM)
+
+    def wheelEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            (self.zoom_in if event.angleDelta().y() > 0 else self.zoom_out)()
+            event.accept()
+        else:
+            super().wheelEvent(event)
 
     # -- reordering -------------------------------------------------------
 
@@ -264,13 +304,25 @@ class ThumbnailView(QStackedWidget):
     def set_page_count(self, count: int) -> None:
         """Reset the grid to `count` numbered placeholder items."""
         self._grid.clear()
+        size_hint = self._grid.item_size_hint()
         for i in range(count):
             item = QListWidgetItem(f"Page {i + 1}")
             item.setData(_PAGE_ROLE, i)
             item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter)
-            item.setSizeHint(QSize(_ICON.width() + 20, _ICON.height() + 30))
+            item.setSizeHint(size_hint)
             self._grid.addItem(item)
         self.setCurrentWidget(self._grid if count else self._placeholder)
+
+    # -- zoom (delegated to the grid) -------------------------------------
+
+    def zoom_in(self) -> None:
+        self._grid.zoom_in()
+
+    def zoom_out(self) -> None:
+        self._grid.zoom_out()
+
+    def reset_zoom(self) -> None:
+        self._grid.reset_zoom()
 
     def set_thumbnail(self, index: int, data: bytes) -> None:
         """Fill in the icon for page `index` from PNG bytes."""

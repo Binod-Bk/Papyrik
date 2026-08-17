@@ -248,6 +248,24 @@ def test_drag_reorder_moves_page_to_end(app, window):
     assert last_text == first_text
 
 
+def test_grid_zoom_changes_icon_size(app):
+    from papyrik.ui.thumbnail_view import _Grid, _ZOOM_WIDTHS, _DEFAULT_ZOOM
+
+    grid = _Grid()
+    assert grid.iconSize().width() == _ZOOM_WIDTHS[_DEFAULT_ZOOM]
+
+    assert grid.zoom_in() is True
+    assert grid.iconSize().width() == _ZOOM_WIDTHS[_DEFAULT_ZOOM + 1]
+
+    for _ in range(10):
+        grid.zoom_out()
+    assert grid._zoom == 0                 # clamps at the smallest step
+    assert grid.zoom_out() is False        # no-op at the edge
+
+    grid.reset_zoom()
+    assert grid.iconSize().width() == _ZOOM_WIDTHS[_DEFAULT_ZOOM]
+
+
 def test_grid_apply_move_first_to_end(app):
     from papyrik.ui.thumbnail_view import ThumbnailView
 
