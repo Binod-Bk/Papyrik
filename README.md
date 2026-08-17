@@ -9,7 +9,26 @@
 
 - **Platform:** Windows (desktop)
 - **Stack:** Python 3.11+ · PyQt6 · PyMuPDF · pypdf · pdf2docx · Pillow
-- **Status:** 140 automated tests passing
+- **Status:** 143 automated tests passing
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="Screenshot/A.png" alt="Papyrik — home screen" width="840">
+</p>
+
+<table>
+<tr>
+<td width="50%"><img src="Screenshot/B.png" alt="Page thumbnail grid"><br><sub>Page grid — multi-select, drag-to-reorder, zoom</sub></td>
+<td width="50%"><img src="Screenshot/C.png" alt="Watermark options"><br><sub>Watermark — text or image, opacity, rotation, size, position</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="Screenshot/D.png" alt="PDF to Word"><br><sub>Convert — PDF to Word, Images, or Text</sub></td>
+<td width="50%"></td>
+</tr>
+</table>
 
 ---
 
