@@ -198,3 +198,11 @@ The suite (140 tests) runs every operation against a six-file corpus generated b
 - **Annotations are add-only for now** — you can add and (in-session) undo them; editing existing annotations after reopening is a planned enhancement.
 
 See [`docs/IDEAS.md`](docs/IDEAS.md) for planned post-launch features (annotation editing, smart page-number detection/removal).
+
+---
+
+## License
+
+Papyrik is licensed under the **GNU Affero General Public License v3.0** — see [`LICENSE`](LICENSE).
+
+Papyrik bundles [PyMuPDF](https://pymupdf.readthedocs.io/), which is itself AGPL-3.0 (or available under a commercial license from Artifex). Because the distributed build includes PyMuPDF, the combined work is governed by the AGPL — closed-source or paid distribution would require a commercial PyMuPDF license.
