@@ -11,12 +11,13 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
 
 TOOL_HINTS: dict[str, str] = {
-    "Merge": "Combine several PDFs into one file. (File ▸ Merge PDFs…)",
-    "Split": "Split by page range or every N pages. (Pages ▸ Split…)",
-    "Rotate": "Right-click pages in the grid to rotate them.",
-    "Delete": "Select pages and right-click ▸ Delete.",
-    "Extract": "Select pages and right-click ▸ Extract to new PDF.",
-    "Reorder": "Drag pages in the grid, or use Ctrl+←/→.",
+    "Merge": "Combine several PDFs into one file.",
+    "Split": "Split into files of every N pages.",
+    "Rotate": "Select pages in the grid, then rotate 90° "
+              "(right-click a page for other angles).",
+    "Delete": "Select pages in the grid, then delete them.",
+    "Extract": "Select pages in the grid, then save them as a new PDF.",
+    "Reorder": "Drag pages in the grid to reorder, or select and use Ctrl+←/→.",
     "PDF to Word": "Export to .docx. Best effort on complex layouts.",
     "PDF to Images": "Render each page to PNG or JPEG.",
     "Images to PDF": "Combine image files into a single PDF.",
@@ -36,6 +37,11 @@ TOOL_HINTS: dict[str, str] = {
 
 # Tools driven by this panel's Run button -> label shown on the button.
 RUN_LABELS: dict[str, str] = {
+    "Merge": "Merge PDFs…",
+    "Split": "Split…",
+    "Rotate": "Rotate selected 90°",
+    "Delete": "Delete selected",
+    "Extract": "Extract selected…",
     "PDF to Word": "Convert to Word…",
     "PDF to Images": "Export Images…",
     "Images to PDF": "Choose Images…",

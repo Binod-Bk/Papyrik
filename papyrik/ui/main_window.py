@@ -345,6 +345,37 @@ class MainWindow(QMainWindow):
         self._op_worker = worker
         worker.start()
 
+    # -- page tools driven from the sidebar (act on the selection) --------
+
+    def _selected_or_warn(self, action: str) -> list[int]:
+        indices = self.preview.selected_indices()
+        if not indices:
+            QMessageBox.information(
+                self, action,
+                f"Select one or more pages in the grid first, then {action.lower()}.")
+        return indices
+
+    def _rotate_selected(self) -> None:
+        if not self._need_document():
+            return
+        indices = self._selected_or_warn("Rotate")
+        if indices:
+            self._on_rotate(indices, 90)
+
+    def _delete_selected(self) -> None:
+        if not self._need_document():
+            return
+        indices = self._selected_or_warn("Delete")
+        if indices:
+            self._on_delete(indices)
+
+    def _extract_selected(self) -> None:
+        if not self._need_document():
+            return
+        indices = self._selected_or_warn("Extract")
+        if indices:
+            self._on_extract(indices)
+
     # -- preview gesture handlers ----------------------------------------
 
     def _on_reorder(self, order: list[int]) -> None:
@@ -491,6 +522,11 @@ class MainWindow(QMainWindow):
 
     def _on_run_tool(self, tool: str) -> None:
         handlers = {
+            "Merge": self.merge_files,
+            "Split": self.split_every_n,
+            "Rotate": self._rotate_selected,
+            "Delete": self._delete_selected,
+            "Extract": self._extract_selected,
             "PDF to Word": self._convert_to_word,
             "PDF to Images": self._convert_to_images,
             "Images to PDF": self._images_to_pdf,

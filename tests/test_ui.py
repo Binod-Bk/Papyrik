@@ -378,7 +378,7 @@ def test_tool_panel_run_button_visibility(app):
     panel = ToolPanel()
     panel.show_tool("PDF to Text")
     assert panel._run.isHidden() is False  # shown for runnable tools
-    panel.show_tool("Rotate")  # gesture-only tool, no Run button
+    panel.show_tool("Reorder")  # drag-only tool, no Run button
     assert panel._run.isHidden() is True
 
 
@@ -585,6 +585,27 @@ def test_annotation_note_click_finds_existing(app, window):
     # A click far away resolves to no existing note (would create a new one).
     assert view._canvas._note_at(QPointF(400, 400)) is None
     view.close()
+
+
+def test_rotate_selected_from_sidebar(app, window):
+    window._open_path(_fixture("large_300p.pdf"))
+    window.preview._grid.item(0).setSelected(True)
+    window._on_run_tool("Rotate")
+    assert _wait(app, lambda: not window._busy)
+    assert len(window._versions) == 2
+    assert PdfReader(str(window._current)).pages[0].rotation % 360 == 90
+
+
+def test_page_tool_without_selection_warns(app, window, monkeypatch):
+    from PyQt6.QtWidgets import QMessageBox
+
+    shown = {}
+    monkeypatch.setattr(QMessageBox, "information",
+                        staticmethod(lambda *a, **k: shown.setdefault("i", True)))
+    window._open_path(_fixture("large_300p.pdf"))
+    window._on_run_tool("Delete")           # nothing selected
+    assert shown.get("i")
+    assert len(window._versions) == 1        # no edit applied
 
 
 def test_batch_dialog_runs_over_folder(app, window, monkeypatch, tmp_path):

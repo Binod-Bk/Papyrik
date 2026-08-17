@@ -26,7 +26,8 @@ from papyrik.resources import resource_path
 
 _PAGE_ROLE = Qt.ItemDataRole.UserRole
 _ASPECT = 1.414                       # ~A4 (height / width)
-_ZOOM_WIDTHS = [100, 130, 170, 210, 270, 340]  # icon widths per zoom step
+# Icon widths per zoom step; the largest steps show a single page per row.
+_ZOOM_WIDTHS = [100, 130, 170, 210, 270, 340, 440, 560]
 _DEFAULT_ZOOM = 3                     # -> 210 px
 
 
@@ -63,6 +64,7 @@ class _Grid(QListWidget):
         self.setSpacing(14)
         self.setUniformItemSizes(True)
         self._zoom = _DEFAULT_ZOOM
+        self._pad = 0
         self._apply_zoom()
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setDragEnabled(True)
@@ -87,6 +89,22 @@ class _Grid(QListWidget):
         self.setGridSize(QSize(width + 28, height + 40))
         for row in range(self.count()):
             self.item(row).setSizeHint(QSize(width + 20, height + 30))
+        self._center_single_column()
+
+    def _center_single_column(self) -> None:
+        """When only one page fits per row, centre it (Word-style)."""
+        full = self.width()
+        cell = self.gridSize().width() + self.spacing() * 2
+        columns = max(1, full // cell)
+        pad = max(0, (full - self.gridSize().width()) // 2 - self.spacing()) \
+            if columns <= 1 else 0
+        if pad != self._pad:
+            self._pad = pad
+            self.setViewportMargins(pad, 0, 0, 0)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().resizeEvent(event)
+        self._center_single_column()
 
     def item_size_hint(self) -> QSize:
         width = _ZOOM_WIDTHS[self._zoom]
