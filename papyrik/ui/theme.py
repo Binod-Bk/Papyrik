@@ -8,17 +8,18 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QApplication
 
-# Palette
-BG_0 = "#16141F"       # window background
-BG_1 = "#1E1B2B"       # panels / sidebar
-BG_2 = "#282438"       # inputs / hover
-BG_3 = "#322D46"       # pressed / selection base
-BORDER = "#332F47"
-TEXT = "#EAE8F2"
-MUTED = "#948FAE"
-ACCENT = "#7C6BF0"
-ACCENT_HOVER = "#8E7EF5"
-ACCENT_PRESSED = "#6A58E0"
+# Palette - near-black base with an electric-blue accent; amber stays as the
+# secondary highlight to tie back to the logo.
+BG_0 = "#0A0A0D"       # window background (near-black)
+BG_1 = "#121319"       # panels / sidebar
+BG_2 = "#1B1D26"       # inputs / hover
+BG_3 = "#242731"       # pressed / selection base
+BORDER = "#262A35"
+TEXT = "#EAECF3"
+MUTED = "#888FA1"
+ACCENT = "#2563EB"     # electric blue
+ACCENT_HOVER = "#3B7BF5"
+ACCENT_PRESSED = "#1D4FC7"
 AMBER = "#FFC24B"
 
 _QSS = f"""
