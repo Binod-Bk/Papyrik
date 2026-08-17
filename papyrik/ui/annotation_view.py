@@ -22,6 +22,7 @@ from PyQt6.QtGui import (
     QShortcut,
 )
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QDialog,
     QHBoxLayout,
     QInputDialog,
@@ -35,10 +36,22 @@ from PyQt6.QtWidgets import (
 from papyrik.core.document import PdfDocument
 
 _RENDER_DPI = 150
-_HL_FILL = QColor(255, 230, 80, 90)
 _INK_PEN = QColor(210, 30, 30)
 _NOTE_COLOR = QColor(240, 200, 60)
 _PAGE_BORDER = QColor(0, 0, 0, 40)
+
+# Highlighter colours: (name, (r, g, b) in 0-1). First is the default.
+_HL_COLORS = [
+    ("Yellow", (1.0, 0.90, 0.30)),
+    ("Green", (0.55, 0.92, 0.50)),
+    ("Pink", (1.0, 0.60, 0.78)),
+    ("Blue", (0.50, 0.78, 1.0)),
+    ("Orange", (1.0, 0.72, 0.30)),
+]
+
+
+def _fill(rgb: tuple, alpha: int = 90) -> QColor:
+    return QColor(int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255), alpha)
 
 
 class _Canvas(QWidget):
@@ -59,7 +72,8 @@ class _Canvas(QWidget):
         self.setMouseTracking(True)
 
         self.tool = "draw"                          # draw | highlight | note
-        self.highlights: list[QRectF] = []          # PDF coords
+        self.hl_color = _HL_COLORS[0][1]            # current highlighter colour
+        self.highlights: list[tuple[QRectF, tuple]] = []  # (rect, rgb) PDF coords
         self.strokes: list[list[QPointF]] = []       # PDF coords
         self.notes: list[tuple[QPointF, str]] = []    # PDF coords
         self._order: list[str] = []                  # for last-in undo
@@ -97,10 +111,11 @@ class _Canvas(QWidget):
         painter.drawRect(target)
 
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(_HL_FILL)
-        for rect in self.highlights:
+        for rect, color in self.highlights:
+            painter.setBrush(_fill(color))
             painter.drawRect(self._rect_to_screen(rect))
         if self._box_start and self._box_cur:
+            painter.setBrush(_fill(self.hl_color))
             painter.drawRect(QRectF(self._to_screen(self._box_start.x(),
                                                     self._box_start.y()),
                                     self._to_screen(self._box_cur.x(),
@@ -186,7 +201,7 @@ class _Canvas(QWidget):
         elif self.tool == "highlight" and self._box_start is not None:
             rect = QRectF(self._box_start, pos).normalized()
             if rect.width() > 2 and rect.height() > 2:
-                self.highlights.append(rect)
+                self.highlights.append((rect, self.hl_color))
                 self._order.append("highlight")
             self._box_start = self._box_cur = None
             self.update()
@@ -237,6 +252,25 @@ class AnnotationView(QDialog):
             button.clicked.connect(lambda _c, n=name: self._set_tool(n))
             self._buttons[name] = button
             toolbar.addWidget(button)
+
+        toolbar.addSpacing(12)
+        self._swatches = QButtonGroup(self)
+        for i, (cname, rgb) in enumerate(_HL_COLORS):
+            swatch = QPushButton()
+            swatch.setFixedSize(22, 22)
+            swatch.setCheckable(True)
+            swatch.setChecked(i == 0)
+            swatch.setToolTip(f"Highlight colour: {cname}")
+            hexc = "#%02X%02X%02X" % (int(rgb[0] * 255), int(rgb[1] * 255),
+                                      int(rgb[2] * 255))
+            swatch.setStyleSheet(
+                f"QPushButton{{background:{hexc};border-radius:4px;"
+                "border:2px solid #00000000;}"
+                "QPushButton:checked{border:2px solid #FFFFFF;}")
+            swatch.clicked.connect(lambda _c, c=rgb: self._set_hl_color(c))
+            self._swatches.addButton(swatch)
+            toolbar.addWidget(swatch)
+
         toolbar.addStretch(1)
         undo = QPushButton("Undo (Ctrl+Z)")
         undo.clicked.connect(self._canvas.undo)
@@ -273,10 +307,13 @@ class AnnotationView(QDialog):
         for key, button in self._buttons.items():
             button.setChecked(key == name)
 
+    def _set_hl_color(self, rgb: tuple) -> None:
+        self._canvas.hl_color = rgb
+
     def result_annotations(self) -> dict:
         """Collected annotations, already in PDF coordinates."""
-        highlights = [(r.left(), r.top(), r.right(), r.bottom())
-                      for r in self._canvas.highlights]
+        highlights = [((r.left(), r.top(), r.right(), r.bottom()), color)
+                      for r, color in self._canvas.highlights]
         notes = [((p.x(), p.y()), text) for p, text in self._canvas.notes]
         strokes = [[(p.x(), p.y()) for p in stroke]
                    for stroke in self._canvas.strokes]

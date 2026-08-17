@@ -110,3 +110,23 @@ def test_apply_all_mixed(tmp_path):
 def test_apply_all_empty_raises(tmp_path):
     with pytest.raises(ValueError):
         annotate.apply_all(_fixture("cjk.pdf"), tmp_path / "x.pdf", 0)
+
+
+def test_highlight_uses_given_colour(tmp_path):
+    green = (0.2, 0.8, 0.3)
+    out = annotate.apply_all(
+        _fixture("cjk.pdf"), tmp_path / "a.pdf", 0,
+        highlights=[((72, 90, 300, 130), green)])
+    with pymupdf.open(str(out)) as doc:
+        strokes = [a.colors.get("stroke") for a in doc[0].annots()
+                   if a.type[1] == "Highlight"]
+    assert strokes and strokes[0] is not None
+    r, g, b = strokes[0]
+    assert g > r and g > b  # green channel dominant, not the default yellow
+
+
+def test_highlight_bare_rect_still_works(tmp_path):
+    # Backward compatible: a plain rect (no colour) defaults to yellow.
+    out = annotate.apply_all(_fixture("cjk.pdf"), tmp_path / "a.pdf", 0,
+                             highlights=[(72, 90, 300, 130)])
+    assert "Highlight" in _annot_types(out)

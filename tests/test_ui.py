@@ -558,11 +558,14 @@ def test_annotation_view_returns_pdf_coords_and_undo(app, window):
     view = AnnotationView(window._current, 0, "highlight", window)
 
     # Annotations are stored in PDF points and returned unchanged.
-    view._canvas.highlights.append(QRectF(QPointF(10, 20), QPointF(110, 70)))
+    view._canvas.highlights.append(
+        (QRectF(QPointF(10, 20), QPointF(110, 70)), (1.0, 0.9, 0.3)))
     view._canvas._order.append("highlight")
     view._canvas.notes.append((QPointF(50, 60), "hi"))
     view._canvas._order.append("note")
-    assert view.result_annotations()["highlights"][0] == (10.0, 20.0, 110.0, 70.0)
+    rect, color = view.result_annotations()["highlights"][0]
+    assert rect == (10.0, 20.0, 110.0, 70.0)
+    assert color == (1.0, 0.9, 0.3)
 
     # Undo removes only the last annotation (the note), not the highlight.
     view._canvas.undo()

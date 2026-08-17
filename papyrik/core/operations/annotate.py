@@ -40,20 +40,31 @@ def _page(doc: pymupdf.Document, index: int) -> pymupdf.Page:
 
 
 def highlight(input_pdf: str | Path, page: int, rects: list[tuple],
-              output: str | Path) -> Path:
-    """Highlight the given rectangles (x0, y0, x1, y1) on `page`."""
+              output: str | Path, color: tuple = _HIGHLIGHT_RGB) -> Path:
+    """Highlight the given rectangles (x0, y0, x1, y1) on `page` in `color`."""
     if not rects:
         raise ValueError("highlight needs at least one rectangle.")
     doc = _open_pdf(input_pdf)
     try:
         pg = _page(doc, page)
         for rect in rects:
-            annot = pg.add_highlight_annot(pymupdf.Rect(rect))
-            annot.set_colors(stroke=_HIGHLIGHT_RGB)
-            annot.update()
+            _add_highlight(pg, rect, color)
         return _save(doc, output)
     finally:
         doc.close()
+
+
+def _add_highlight(page: pymupdf.Page, rect: tuple, color: tuple) -> None:
+    annot = page.add_highlight_annot(pymupdf.Rect(rect))
+    annot.set_colors(stroke=color)
+    annot.update()
+
+
+def _split_highlight(entry) -> tuple[tuple, tuple]:
+    """Accept a bare rect (default colour) or a (rect, color) pair."""
+    if len(entry) == 2 and hasattr(entry[0], "__len__") and len(entry[0]) == 4:
+        return tuple(entry[0]), tuple(entry[1])
+    return tuple(entry), _HIGHLIGHT_RGB
 
 
 def text_note(input_pdf: str | Path, page: int, point: tuple, text: str,
@@ -104,10 +115,9 @@ def apply_all(input_pdf: str | Path, output: str | Path, page: int, *,
     doc = _open_pdf(input_pdf)
     try:
         pg = _page(doc, page)
-        for rect in highlights:
-            annot = pg.add_highlight_annot(pymupdf.Rect(rect))
-            annot.set_colors(stroke=_HIGHLIGHT_RGB)
-            annot.update()
+        for entry in highlights:
+            rect, color = _split_highlight(entry)
+            _add_highlight(pg, rect, color)
         for point, text in notes:
             if text:
                 _add_note(pg, point, text)

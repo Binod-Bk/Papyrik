@@ -9,7 +9,7 @@
 
 - **Platform:** Windows (desktop)
 - **Stack:** Python 3.11+ · PyQt6 · PyMuPDF · pypdf · pdf2docx · Pillow
-- **Status:** 143 automated tests passing
+- **Status:** 145 automated tests passing
 
 ---
 
@@ -21,12 +21,12 @@
 
 <table>
 <tr>
-<td width="50%"><img src="Screenshot/B.png" alt="Page thumbnail grid"><br><sub>Page grid — multi-select, drag-to-reorder, zoom</sub></td>
-<td width="50%"><img src="Screenshot/C.png" alt="Watermark options"><br><sub>Watermark — text or image, opacity, rotation, size, position</sub></td>
+<td width="50%"><img src="Screenshot/B.png" alt="Annotate"><br><sub>Annotate — highlight (multiple colours), sticky note, draw</sub></td>
+<td width="50%"><img src="Screenshot/E.png" alt="Watermark"><br><sub>Watermark — text or image, opacity, rotation, size, position</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="Screenshot/D.png" alt="PDF to Word"><br><sub>Convert — PDF to Word, Images, or Text</sub></td>
-<td width="50%"></td>
+<td width="50%"><img src="Screenshot/D.png" alt="Convert"><br><sub>Convert — PDF to Word, Images, or Text</sub></td>
+<td width="50%"><img src="Screenshot/C.png" alt="Metadata"><br><sub>Metadata — view and edit document info</sub></td>
 </tr>
 </table>
 
@@ -120,7 +120,7 @@ Long operations run on a background thread, so the window never freezes, and eac
 
 | Feature | What it does |
 | --- | --- |
-| **Highlight** | Drag a box on the page to highlight a region. |
+| **Highlight** | Drag a box to highlight a region, in your choice of colour (yellow, green, pink, blue, orange). |
 | **Sticky note** | Click to drop a note and type its text; click an existing note to read/edit it. Read notes anywhere via the page viewer. |
 | **Draw** | Freehand ink with the mouse. |
 
