@@ -52,6 +52,7 @@ class _Grid(QListWidget):
     delete_requested = pyqtSignal(list)           # indices
     extract_requested = pyqtSignal(list)          # indices
     page_activated = pyqtSignal(int)              # double-clicked page index
+    zoom_changed = pyqtSignal()                   # icon size changed
 
     def __init__(self) -> None:
         super().__init__()
@@ -116,6 +117,7 @@ class _Grid(QListWidget):
             return False
         self._zoom = index
         self._apply_zoom()
+        self.zoom_changed.emit()
         return True
 
     def zoom_in(self) -> bool:
@@ -281,12 +283,15 @@ class ThumbnailView(QStackedWidget):
 
         self._placeholder = self._build_placeholder()
 
+        self._pixmaps: dict[int, QPixmap] = {}  # index -> original render
+
         self._grid = _Grid()
         self._grid.reorder_requested.connect(self.reorder_requested)
         self._grid.rotate_requested.connect(self.rotate_requested)
         self._grid.delete_requested.connect(self.delete_requested)
         self._grid.extract_requested.connect(self.extract_requested)
         self._grid.page_activated.connect(self.page_activated)
+        self._grid.zoom_changed.connect(self._rescale_icons)
 
         self.addWidget(self._placeholder)
         self.addWidget(self._grid)
@@ -322,6 +327,7 @@ class ThumbnailView(QStackedWidget):
     def set_page_count(self, count: int) -> None:
         """Reset the grid to `count` numbered placeholder items."""
         self._grid.clear()
+        self._pixmaps.clear()
         size_hint = self._grid.item_size_hint()
         for i in range(count):
             item = QListWidgetItem(f"Page {i + 1}")
@@ -348,7 +354,26 @@ class ThumbnailView(QStackedWidget):
             return
         image = QImage()
         image.loadFromData(data, "PNG")
-        self._grid.item(index).setIcon(QIcon(QPixmap.fromImage(image)))
+        pixmap = QPixmap.fromImage(image)
+        self._pixmaps[index] = pixmap
+        self._grid.item(index).setIcon(self._scaled_icon(pixmap))
+
+    def _scaled_icon(self, pixmap: QPixmap) -> QIcon:
+        """Scale a page render to the current icon size so it fills the cell.
+
+        Qt won't upscale an icon past the pixmap's native size, so we do it
+        ourselves - the page fills the zoom area instead of sitting small in it.
+        """
+        target = self._grid.iconSize()
+        scaled = pixmap.scaled(
+            target, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)
+        return QIcon(scaled)
+
+    def _rescale_icons(self) -> None:
+        for index, pixmap in self._pixmaps.items():
+            if 0 <= index < self._grid.count():
+                self._grid.item(index).setIcon(self._scaled_icon(pixmap))
 
     def selected_indices(self) -> list[int]:
         return self._grid.selected_indices()
